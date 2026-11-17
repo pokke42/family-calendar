@@ -8,7 +8,8 @@
     "build": "node build.mjs",
     "test": "node --test test/*.test.js",
     "test:ui": "playwright test",
-    "diagnose": "node integrations/diagnose.mjs"
+    "diagnose": "node integrations/diagnose.mjs",
+    "addon:package": "node scripts/package-addon.mjs"
   },
   "dependencies": {
     "ical.js": "2.2.1"

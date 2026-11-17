@@ -163,3 +163,24 @@ test('diagnostics identify HTTP, DNS, TLS and parser failures without private de
   store.fetchFeed = async () => feed(); await store.sync(source.id, true);
   assert.equal(store.snapshot()[0].errorCode, null);
 });
+
+test('HA Ingress requires the enabled mode and Supervisor proxy, then permits authenticated setup', async t => {
+  const { ingressBase } = await import('../integrations/ingress.mjs');
+  const { Readable } = await import('node:stream');
+  const store = await fixture(t, async () => feed());
+  const req = { method: 'GET', socket: { remoteAddress: '172.30.32.2', localPort: 8099 }, headers: { host: 'homeassistant.local:8123', 'x-ingress-path': '/api/hassio_ingress/test-token' } };
+  assert.equal(ingressBase(req, true), '/api/hassio_ingress/test-token/');
+  assert.equal(ingressBase(req, false), null);
+  assert.equal(ingressBase({ ...req, socket: { ...req.socket, remoteAddress: '192.168.1.50' } }, true), null);
+  assert.equal(ingressBase({ ...req, headers: { ...req.headers, 'x-ingress-path': '/bad\"path' } }, true), null);
+  assert.equal(ingressBase({ ...req, headers: { ...req.headers, 'sec-fetch-site': 'cross-site' } }, true), null);
+  let status, output;
+  const res = { writeHead: code => { status = code; }, end: text => { output = JSON.parse(text); } };
+  await serveConnections(req, res, '/api/connections', store, undefined, true);
+  assert.equal(status, 200); assert.equal(output.readOnly, false);
+  const post = Object.assign(Readable.from([JSON.stringify({ calendars: [] })]), { method: 'POST', socket: req.socket, headers: { ...req.headers, 'content-type': 'application/json' } });
+  await serveConnections(post, res, '/api/connections/templates', store, undefined, true);
+  assert.equal(status, 200); assert.deepEqual(store.calendars, []);
+  await serveConnections({ ...req, socket: { ...req.socket, remoteAddress: '192.168.1.50' } }, res, '/api/connections', store, undefined, true);
+  assert.equal(status, 403);
+});

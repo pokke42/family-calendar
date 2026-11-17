@@ -21,9 +21,9 @@ export function isLocalRequest(req) {
   if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return false;
   return true;
 }
-export async function serveConnections(req, res, pathname, store, lanHost) {
+export async function serveConnections(req, res, pathname, store, lanHost, haIngress = false) {
   const json = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify(data)); };
-  const local = isLocalRequest(req);
+  const local = isLocalRequest(req) || !!ingressBase(req, haIngress);
   if (req.method === 'GET' && pathname === '/api/connections' && (local || isLanReader(req, lanHost))) {
     json(200, { connections: store.snapshot(), calendars: store.calendars, readOnly: !local }); return;
   }
@@ -47,3 +47,4 @@ export async function serveConnections(req, res, pathname, store, lanHost) {
     json(400, { error: error.code ? 'Anslutningen kunde inte sparas eller hämtas.' : error.message });
   }
 }
+import { ingressBase } from './ingress.mjs';

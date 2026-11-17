@@ -110,3 +110,9 @@ På Macen, från projektmappen, kör `npm run diagnose -- icloud`. Kommandot lä
 
 
 Serverhämtning och diagnos stöder kalenderfiler upp till 20 MB, exempelvis iCloud-kalendrar med lång historik. Servern tolkar filen och sparar bara normaliserade aktiviteter inom importfönstret (cirka en månad bakåt och ett år framåt); råfil, gamla aktivitetstexter och bilagor skickas inte till iPaden. Manuell import i webbläsaren har kvar gränsen 2 MB. Gränserna för antal aktiviteter och upprepningar finns kvar. Kör `npm run diagnose -- icloud` igen efter uppdatering om tidigare fel var SIZE och starta om servern för att använda den nya gränsen.
+
+## Home Assistant OS (HAOS)
+
+Ett lokalt tillägg finns under `haos/`. Kör `npm run addon:package` för att skapa installationsmappen `dist/haos/hemma`, och kopiera den till `/addons/hemma` på HAOS. Fullständig installationsguide finns i [haos/DOCS.md](haos/DOCS.md). Tillägget använder Home Assistants Ingress och inloggning, utan separat publik port. Anslutningar och veckoscheman kan hanteras via Home Assistant och sparas i tilläggets `/data`, så Macen behöver inte vara på. Befintliga webbläsarinställningar överförs inte automatiskt; importera den privata familjefilen på nytt genom tillägget.
+
+Tillägget är byggt för amd64 och aarch64. Container- och Ingress-tester ersätter inte verifiering i en faktisk HAOS-installation. iPad Air 2 behöver även kunna öppna Home Assistants eget webbgränssnitt; dess webbläsarkrav är separata från kalenderns Safari 15-mål.

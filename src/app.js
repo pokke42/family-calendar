@@ -301,7 +301,7 @@ function calendarEvents() {
   return state.events.filter(e => !(ids.has(e.sourceId) && (e.imported || e.id.startsWith('demo-')))).concat(connections.flatMap(c => c.events), weeklyCache.events);
 }
 function connectionControls(source) {
-  if (connectionReadOnly) return '<p class="subtle">Hämtas från Macen. Anslutningar ändras på Macen via localhost.</p>';
+  if (connectionReadOnly) return '<p class="subtle">Hämtas från kalenderservern. Anslutningar ändras i serverns administratörsvy.</p>';
   const connection = connections.find(c => c.source.id === source.id);
   if (connection) return `<p class="subtle">Senaste lyckade synk: ${escape(connection.lastSuccess ? new Date(connection.lastSuccess).toLocaleString('sv-SE') : 'Ingen lyckad hämtning ännu')} · ${connection.events.length} aktiviteter</p>${connection.error ? `<p class="error">${escape(connection.error)}${connection.errorCode ? ` (${escape(connection.errorCode)})` : ''}</p>` : ''}<div class="source-actions"><button data-sync="${escape(source.id)}">Uppdatera nu</button><button data-connect="${escape(source.id)}">Byt länk</button><button data-disconnect="${escape(source.id)}">Koppla från</button></div>`;
   return `<div class="source-actions">${['Apple / iCloud', 'InfoMentor', 'SportAdmin', 'Svenska Lag'].includes(source.provider) ? `<button data-connect="${escape(source.id)}" ${connectionService !== 'ready' ? 'disabled' : ''}>Anslut kalender</button>` : ''}<button type="button" data-import="${escape(source.id)}">Importera ICS-fil</button></div>`;
@@ -309,7 +309,7 @@ function connectionControls(source) {
 async function connectionRequest(path = '', body) {
   let response;
   try {
-    response = await fetch('/api/connections' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
+    response = await fetch('api/connections' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
   } catch { throw new Error('Kalenderservern kan inte nås. Starta npm run dev på datorn.'); }
   let data;
   try { data = await response.json(); } catch { throw new Error('Kalenderanslutningar kräver Node-servern. Starta npm run dev och öppna appen via localhost på datorn.'); }

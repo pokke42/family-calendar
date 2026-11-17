@@ -252,3 +252,23 @@ test('iPad reader loads shared school templates without demo data and keeps conn
   await expect(page.getByRole('button', { name: 'Anslut kalender', exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Färg för Olles veckoschema')).toBeEnabled();
 });
+
+test('HA Ingress prefix loads assets and API relative to authenticated app URL', async ({ page }) => {
+  const base = '/api/hassio_ingress/test-token/';
+  const loaded = [];
+  await page.route('**/api/hassio_ingress/test-token/**', async route => {
+    const relative = new URL(route.request().url()).pathname.slice(base.length);
+    loaded.push(relative);
+    if (relative === 'api/connections') { await route.fulfill({ json: { connections: [], calendars: [], readOnly: false } }); return; }
+    const response = await route.fetch({ url: 'http://127.0.0.1:3000/' + relative });
+    if (!relative) {
+      const body = (await response.text()).replace('<head>', `<head><base href="${base}">`);
+      await route.fulfill({ response, body });
+    } else await route.fulfill({ response });
+  });
+  await page.goto(base);
+  await expect(page.locator('.day')).toHaveCount(7);
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  await expect(page.getByRole('button', { name: 'Importera privat familjefil' })).toBeEnabled();
+  expect(loaded).toEqual(expect.arrayContaining(['', 'app.js', 'styles.css', 'api/connections']));
+});
