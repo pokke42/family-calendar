@@ -137,3 +137,75 @@ test('native fullscreen can be entered and exited with the visible button', asyn
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
   await expect(page.locator('body')).not.toHaveClass(/calendar-fullscreen/);
 });
+
+test('connects Emils SportAdmin through UI, shows failures and disconnects without storing the feed URL in the browser', async ({ page }) => {
+  let connections = [], failed = false;
+  const token = 'private-test-token';
+  await page.route('**/api/connections**', async route => {
+    const req = route.request(), path = new URL(req.url()).pathname;
+    if (req.method() === 'POST') {
+      const data = req.postDataJSON();
+      if (path.endsWith('/disconnect')) connections = [];
+      else if (path.endsWith('/sync')) connections[0].error = 'Synk misslyckades. Senast hämtade aktiviteter behålls.';
+      else {
+        expect(data.source.people).toEqual(['4']);
+        expect(data.url).toContain(token);
+        if (failed) { await route.fulfill({ status: 400, json: { error: 'Länken gav ingen ICS-kalender.' } }); return; }
+        const start = new Date(); start.setHours(16, 0, 0, 0);
+        connections = [{ source: data.source, events: [{ id: 'emil-match', title: 'Emils importerade träning', start: start.toISOString(), end: new Date(+start + 3600000).toISOString(), people: ['4'], category: 'sport', sourceId: data.source.id, synced: true, imported: true }], lastSuccess: new Date().toISOString(), error: null }];
+      }
+    }
+    await route.fulfill({ json: { connections } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  const source = page.locator('.source-card').filter({ hasText: 'Emils SportAdmin' });
+  await source.getByRole('button', { name: 'Anslut kalender' }).click();
+  await page.getByLabel('Kalenderlänk').fill('https://portalweb.sportadmin.se/webcal?id=' + token);
+  await page.getByRole('button', { name: 'Anslut och hämta' }).click();
+  await expect(source).toContainText('Senaste lyckade synk');
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(token);
+  await page.getByRole('button', { name: 'Stäng', exact: true }).click();
+  await expect(page.locator('.event').filter({ hasText: 'Emils importerade träning' })).toHaveCount(1);
+  await page.locator('.event').filter({ hasText: 'Emils importerade träning' }).click();
+  await expect(page.getByText('Ändringar görs i källtjänsten.')).toBeVisible();
+  await page.getByRole('button', { name: 'Stäng', exact: true }).click();
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  await source.getByRole('button', { name: 'Uppdatera nu' }).click();
+  await expect(source).toContainText('Synk misslyckades');
+  failed = true;
+  await source.getByRole('button', { name: 'Byt länk' }).click();
+  await page.getByLabel('Kalenderlänk').fill('https://portalweb.sportadmin.se/webcal?id=' + token);
+  await page.getByRole('button', { name: 'Anslut och hämta' }).click();
+  await expect(page.locator('#connect-error')).toContainText('ingen ICS');
+  await page.getByRole('button', { name: 'Tillbaka', exact: true }).click();
+  await source.getByRole('button', { name: 'Koppla från', exact: true }).click();
+  await page.locator('#confirm-disconnect').click();
+  await expect(source.getByRole('button', { name: 'Anslut kalender' })).toBeVisible();
+});
+
+test('private family setup imports weekly lessons that survive reload and future years', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  let connections = [];
+  await page.route('**/api/connections**', async route => {
+    if (route.request().method() === 'POST') {
+      const { source } = route.request().postDataJSON();
+      connections = [{ source, events: [], lastSuccess: null, error: 'Väntar på nätverk' }];
+    }
+    await route.fulfill({ json: { connections } });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  const source = { id: 'weekly-school', name: 'Olles veckoschema', provider: 'PDF', people: ['3'], category: 'school' };
+  const setup = { version: 1, connections: [{ source: { ...source, id: 'homework', name: 'Olles skoluppgifter', provider: 'InfoMentor' }, url: 'webcals://im2-api.infomentor.se/private-test-link' }], calendars: [{ source, ics: 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:weekly-lesson\r\nDTSTART:20261117T125500\r\nDTEND:20261117T132500\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:MTID\r\nEND:VEVENT\r\nEND:VCALENDAR' }] };
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Importera privat familjefil' }).click();
+  await (await chooser).setFiles({ name: 'test.family.private.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(setup)) });
+  await expect(page.locator('.source-card').filter({ hasText: 'Olles veckoschema' })).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('private-test-link');
+  await page.getByRole('button', { name: 'Stäng', exact: true }).click();
+  await expect(page.locator('.event').filter({ hasText: 'MTID' })).toHaveCount(1);
+  await page.clock.setFixedTime(new Date('2028-11-14T12:00:00Z'));
+  await page.reload();
+  await expect(page.locator('.event').filter({ hasText: 'MTID' })).toHaveCount(1);
+});

@@ -4,7 +4,7 @@ En lätt webbapp för familjens kalender, med iPad Air 2 som mål. Första versi
 
 ## Köra
 
-Node.js 24 och npm används för utveckling. Ingen Node-server behövs på iPaden eller på det framtida statiska webbhotellet.
+Node.js 24 och npm används för utveckling. Node-servern behövs för kalenderprenumerationer. Den körs på Macen vid lokal testning. Statisk hosting ger bara lokal kalender och manuell import, inte serverkopplingarna.
 
 ```sh
 cd /workspace/family-calendar
@@ -27,13 +27,13 @@ Utvecklingsservern lyssnar på port 3000 (`PORT` kan ändra porten). Den servera
 - Familjemedlemmar vars visningsnamn kan ändras under kalenderkällor.
 - Manuell import av ICS-filer. Förvalda källor: Apple/iCloud, Outlook, InfoMentor, SportAdmin och Svenska Lag; fler källor kan läggas till.
 - Återkommande händelser, undantag, flyttade händelser, heldagar och tidszonsdefinitioner i ICS. Kalenderlänkar från `URL` öppnas i källtjänsten.
-- Lokal lagring på just den enheten. Inga familjeuppgifter skickas till någon backend. Exempeldata är tydligt märkt och kan tömmas.
+- Lokal lagring på just den enheten. Anslutna kalenderlänkar lagras på den lokala Node-servern; hämtade aktiviteter läses därifrån. Exempeldata är tydligt märkt och kan tömmas.
 
 Importen är en ögonblicksbild, inte en prenumeration. Den omfattar cirka en månad bakåt och ett år framåt. Nästa import ersätter tidigare importerade händelser från samma källa. Begränsningar: 2 MB per fil, 5 000 händelser per import och högst 30 000 upprepningssteg. Kalenderns `VTIMEZONE` eller UTC krävs för tidsatta zonbundna händelser; okända tidszoner avvisas i stället för att gissa. Flytande tider visas som lokal tid. Lokal data kan försvinna när Safari rensas och delas inte mellan enheter. Det finns ännu ingen redigering av importerade händelser eller export av den lokala kalendern.
 
 ## iPad Air 2
 
-Använd iPadOS 15 med senaste tillgängliga uppdateringen. JavaScript byggs för Safari 15. Vanlig JavaScript och CSS, systemtypsnitt, inga bildpaket, inga UI-ramverk, ingen bakgrundspollning och ingen tung animationsmotor. Bara vald dag, vecka eller månadsrutnät med 42 datum renderas åt gången. Appens JavaScript är cirka 103 kB okomprimerat i första versionen; produktionsvärden bör använda Brotli/gzip.
+Använd iPadOS 15 med senaste tillgängliga uppdateringen. JavaScript byggs för Safari 15. Vanlig JavaScript och CSS, systemtypsnitt, inga bildpaket, inga UI-ramverk, lätt kontroll av serverns cache en gång per minut när sidan är synlig och ingen tung animationsmotor. Bara vald dag, vecka eller månadsrutnät med 42 datum renderas åt gången. Appens JavaScript är cirka 103 kB okomprimerat i första versionen; produktionsvärden bör använda Brotli/gzip.
 
 Helskärmsläget använder webbläsarens Fullscreen API när det finns, med ett CSS-baserat läge som fungerar även när det saknas. Safari på äldre iPad kan behålla sina verktygsfält. För en fristående vy: välj **Dela → Lägg till på hemskärmen** i Safari och öppna sedan appen därifrån. Meta-inställningar för Apples webbappläge finns i appen.
 
@@ -49,12 +49,25 @@ Föreslagen datamodell: `families`, `family_members`, `people`, `calendar_source
 | --- | --- | --- |
 | Apple/iCloud | Exporterad ICS-fil | Serverhämtad kalenderprenumeration om sådan kan delas. Privat iCloud-koppling behöver separat autentisering/CalDAV-utredning. Publicera inte en privat familjekalender enbart för denna demo. |
 | Outlook | Exporterad ICS-fil | Kalenderprenumeration om tillgänglig, alternativt Microsoft Graph med delegerad OAuth och minsta läsbehörighet. |
-| InfoMentor | ICS-fil om skolan erbjuder export | Kontrollera skolans schematjänst och export/prenumerationsmöjligheter. InfoMentor-namnet i appen innebär inte att ett API är anslutet. |
-| SportAdmin | ICS-fil om föreningen erbjuder export | Verifiera tillgänglig kalenderprenumeration och officiellt integrationsstöd. |
-| Svenska Lag | ICS-fil om föreningen erbjuder export | Verifiera tillgänglig kalenderprenumeration och officiellt integrationsstöd. |
+| InfoMentor | ICS-fil eller serverhämtad kalenderprenumeration | Kräver en fungerande prenumerationslänk från skolan. |
+| SportAdmin | ICS-fil eller serverhämtad kalenderprenumeration | Kallelsesvar behöver separat integrationsstöd. |
+| Svenska Lag | ICS-fil eller serverhämtad kalenderprenumeration | Kallelsesvar behöver separat integrationsstöd. |
 
 **Svar på kallelser:** ICS räcker inte för att bekräfta närvaro. Direkt svar i SportAdmin och Svenska Lag är inte implementerat och kräver verifierade, tillåtna API:er samt separat autentisering. Nu kan användaren öppna aktivitetens HTTPS-länk, om importen innehåller en sådan, och svara i källtjänsten. Appen visar inga falska ja/nej-knappar. Det återstår att kontrollera detta mot de faktiska tjänsterna och era föreningar.
 
 För att gå från prototyp till delad vardagsapp behövs ett valt Supabase-projekt, inloggning och familjemedlemskap med testade åtkomstregler, samt tillgång till de faktiska kalenderexporterna/prenumerationerna. Därefter kan schemalagd synk, konflikthantering och säker cache införas. Serverbaserad synk ska inte lämna åtkomstlänkar, lösenord eller OAuth-token i webbläsarens lokala lagring.
 
 Kalendertolkningen använder oförändrad [ical.js 2.2.1](https://github.com/mozilla-comm/ical.js/tree/v2.2.1), Mozilla Public License 2.0. Licenstexten följer med produktionsbygget som `ical.js.LICENSE.txt`. Övriga npm-paket används som utvecklingsverktyg.
+
+
+## Kalenderanslutningar och privat familjefil
+
+Under Hantera kalenderkällor kan InfoMentor, SportAdmin och Svenska Lag anslutas med en ICS-prenumerationslänk (`https://`, `webcal://` eller `webcals://`). Hämtning sker på servern vid anslutning, serverstart och sedan var 15:e minut. Uppdatera nu gör högst en ny hämtning per minut. Misslyckad synk behåller senaste kalendern och visar felstatus. Detta är kalenderläsning; direkta svar på kallelser och kontoinloggning till leverantörerna är inte implementerade. Integrationen har testats med testdata; faktisk åtkomst beror på respektive prenumerationslänk och nätverk.
+
+Servern sparar länkar och cache i `.local/connections.json` (ignoreras av Git). `CALENDAR_STORE` kan ange annan privat sökväg. API:et tillåter bara åtkomst via localhost på serverdatorn, eftersom familjeinloggning ännu saknas. Det är inte ett API som ska exponeras publikt eller en delad iPad-lösning. Standardvärdar ligger under tjänsternas domäner. Om InfoMentor länkar vidare till en extern schematjänst kan dess exakta värdnamn anges i `CALENDAR_ALLOWED_HOSTS`, kommaseparerat. HTTPS, publik DNS-adress och varje omdirigering kontrolleras.
+
+En separat privat `*.family.private.json`-fil kan importeras via **Hantera kalenderkällor → Importera privat familjefil**. Den innehåller `version: 1`, `connections` (objekt med `source` och `url`) och `calendars` (objekt med `source` och `ics`). Privata länkar sparas bara på servern. Länkar som inte kan hämtas sparas som väntande, med felstatus. Veckoscheman lagras som återkommande mallar i webbläsaren och fortsätter gälla tills en ny fil med samma käll-id laddas upp. Lov, studiedagar och terminsgränser dras inte av automatiskt. Importen tar bort exempelaktiviteter; egna aktiviteter behålls. Privata filer, PDF-scheman och prenumerationslänkar ska inte läggas i Git.
+
+På Mac: `cd /Users/hakanroos/Documents/ChatGPT/family-cal`, `git pull`, `npm ci --include=dev`, `npm run build`, `npm run dev`. Öppna sedan http://localhost:3000 och importera den privata familjefilen. Servern behöver vara igång för uppdateringar. Spara den privata filen separat från GitHub.
+
+Safari kan inte läsa Kalender-appens iCloud-data genom att användaren är inloggad på iPaden. iCloud behöver en egen autentiserad serverkoppling eller ICS-import. iPadens konto ger inte denna webbapp kalenderbehörighet.

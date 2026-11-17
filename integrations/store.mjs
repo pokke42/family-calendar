@@ -1,0 +1,80 @@
+import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import path from 'node:path';
+import { importCalendar, categories } from '../src/calendar.js';
+import { fetchCalendar, normalizeFeedUrl } from './feed.mjs';
+
+export class CalendarConnections {
+  constructor(file, { fetchFeed = fetchCalendar, extraHosts = [], now = () => new Date() } = {}) {
+    this.file = file; this.fetchFeed = fetchFeed; this.extraHosts = extraHosts; this.now = now;
+    this.connections = []; this.queue = Promise.resolve();
+  }
+  async load() {
+    try {
+      const data = JSON.parse(await readFile(this.file, 'utf8'));
+      if (data.version !== 1 || !Array.isArray(data.connections)) throw new Error('Invalid format');
+      this.connections = data.connections;
+    } catch (error) { if (error.code !== 'ENOENT') throw new Error('Anslutningsfilen kunde inte läsas. Originalfilen har inte ändrats.'); }
+  }
+  serial(action) {
+    const next = this.queue.then(action);
+    this.queue = next.catch(() => {}); return next;
+  }
+  async save() {
+    await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
+    await writeFile(this.file + '.tmp', JSON.stringify({ version: 1, connections: this.connections }), { mode: 0o600 });
+    await rename(this.file + '.tmp', this.file);
+  }
+  snapshot() {
+    return this.connections.map(({ url, ...connection }) => structuredClone(connection));
+  }
+  async refresh(connection) {
+    connection.lastAttempt = this.now().toISOString();
+    try {
+      const text = await this.fetchFeed(connection.url, connection.source.provider, this.extraHosts);
+      const events = importCalendar(text, connection.source, this.now());
+      // Never return raw parser errors, which can contain private feed contents.
+      connection.events = events.map(event => ({ ...event, synced: true }));
+      connection.lastSuccess = this.now().toISOString(); connection.error = null;
+    } catch {
+      connection.error = 'Synk misslyckades. Kontrollera kalenderlänken, nätverket och att filen är en giltig ICS-kalender med tidszon. Senast hämtade aktiviteter behålls.';
+    }
+  }
+  connect(input, { allowPending = false } = {}) {
+    return this.serial(async () => {
+      const source = input.source;
+      if (!source || !/^[a-zA-Z0-9_-]{1,100}$/.test(source.id) || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 100 ||
+        !Array.isArray(source.people) || !source.people.length || source.people.length > 20 || source.people.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,50}$/.test(id)) || !Object.hasOwn(categories, source.category)) {
+        throw new Error('Ange en kalenderkälla med namn, person och aktivitetstyp.');
+      }
+      const url = normalizeFeedUrl(input.url, source.provider, this.extraHosts).href;
+      const prior = this.connections.find(item => item.source.id === source.id);
+      if (!prior && this.connections.length >= 20) throw new Error('Högst 20 kalenderanslutningar stöds.');
+      const connection = { source: { id: source.id, name: source.name, provider: source.provider, people: source.people, category: source.category }, url, events: [], lastSuccess: null, lastAttempt: null, error: null };
+      await this.refresh(connection);
+      if (connection.error && !allowPending) throw new Error(connection.error);
+      const previous = this.connections;
+      this.connections = this.connections.filter(item => item.source.id !== source.id).concat(connection);
+      try { await this.save(); } catch { this.connections = previous; throw new Error('Anslutningen kunde inte sparas på servern.'); }
+      return this.snapshot();
+    });
+  }
+  sync(id, force = false) {
+    return this.serial(async () => {
+      if (id && !this.connections.some(item => item.source.id === id)) throw new Error('Kalenderanslutningen finns inte.');
+      for (const connection of this.connections.filter(item => !id || item.source.id === id)) {
+        if (!force && connection.lastAttempt && +this.now() - Date.parse(connection.lastAttempt) < 60000) continue;
+        await this.refresh(connection);
+      }
+      if (this.connections.length) await this.save();
+      return this.snapshot();
+    });
+  }
+  disconnect(id) {
+    return this.serial(async () => {
+      const previous = this.connections;
+      this.connections = this.connections.filter(item => item.source.id !== id);
+      try { await this.save(); } catch { this.connections = previous; throw new Error('Anslutningen kunde inte tas bort.'); }
+      return this.snapshot();
+    });
+  }
+}

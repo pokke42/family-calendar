@@ -5,3 +5,5 @@ dist/
 .env.*
 test-results/
 playwright-report/
+.local/
+*.family.private.json

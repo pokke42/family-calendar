@@ -9,3 +9,4 @@
 #view-description{display:flex;gap:12px;align-items:center}.legend-person{background:none;color:#85858b;display:inline-flex;gap:4px;align-items:center}.legend-person::before{content:"";display:block;width:6px;height:6px;border-radius:50%;background:var(--person,#999)}
 .calendar-fullscreen .event-meta{display:block;font-size:9px}.calendar-fullscreen .event-location{display:none}
 @media(max-width:500px){#view-description{gap:5px;font-size:8px}.calendar-fullscreen .event-meta{font-size:8px}}
+.source-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}button:disabled{opacity:.5;cursor:default}
