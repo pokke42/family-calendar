@@ -3,6 +3,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
 const domains = {
+  'Apple / iCloud': ['icloud.com'],
   InfoMentor: ['infomentor.se', 'infomentor.nu'],
   'Svenska Lag': ['svenskalag.se'],
   SportAdmin: ['sportadmin.se']

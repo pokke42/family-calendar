@@ -5,13 +5,13 @@ test('family filters, week navigation, activity creation and local persistence',
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Familjens kalender' })).toBeAttached();
   await expect(page.locator('.day')).toHaveCount(7);
-  await expect(page.locator('.event')).toHaveCount(16);
+  await expect(page.locator('.event')).toHaveCount(12);
   for (const input of await page.locator('#people-filters input').all()) await input.uncheck();
   await expect(page.locator('.event')).toHaveCount(0);
   await page.locator('#people-filters input[value="3"]').check();
-  await expect(page.locator('.event')).toHaveCount(9);
-  await page.locator('#source-filters input[value="football"]').uncheck();
   await expect(page.locator('.event')).toHaveCount(6);
+  await page.locator('#source-filters input[value="school"]').uncheck();
+  await expect(page.locator('.event')).toHaveCount(1);
   await page.getByRole('button', { name: 'Nästa vecka', exact: true }).click();
   await expect(page.locator('.event')).toHaveCount(0);
   await page.getByRole('button', { name: 'Idag', exact: true }).click();
@@ -36,10 +36,10 @@ test('imports ICS, replaces duplicate imports and opens safe invitation links', 
   const buffer = Buffer.from(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:match1\r\nDTSTART:${date}T100000\r\nDTEND:${date}T110000\r\nSUMMARY:Importerad match\r\nURL:https://example.org/match\r\nEND:VEVENT\r\nEND:VCALENDAR`);
   for (let i = 0; i < 2; i++) {
     const chooser = page.waitForEvent('filechooser');
-    await page.locator('[data-import="football"]').click();
+    await page.locator('[data-import="emil-sportadmin"]').click();
     await (await chooser).setFiles({ name: 'football.ics', mimeType: 'text/calendar', buffer });
     await expect(page.getByRole('status').filter({ hasText: '1 aktiviteter importerades' })).toBeVisible();
-    await expect(page.locator('[data-import="football"]')).toHaveText('Importera ICS-fil');
+    await expect(page.locator('[data-import="emil-sportadmin"]')).toHaveText('Importera ICS-fil');
   }
   await page.getByRole('button', { name: 'Stäng', exact: true }).click();
   await expect(page.locator('.event').filter({ hasText: 'Importerad match' })).toHaveCount(1);
@@ -70,13 +70,13 @@ test('switches between month, week and day with view-specific navigation and ret
   await page.locator('.month-day [data-date="2026-11-17"]').first().click();
   await expect(page.locator('[data-view="day"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.time-column')).toHaveCount(1);
-  await expect(page.locator('.event')).toHaveCount(3);
+  await expect(page.locator('.event')).toHaveCount(2);
   await page.getByRole('button', { name: 'Nästa dag', exact: true }).click();
   await expect(page.locator('#week-title')).toHaveText('18 november 2026');
   await page.getByRole('button', { name: 'Vecka', exact: true }).click();
   await expect(page.locator('.time-column')).toHaveCount(7);
   await page.locator('#category-filters input[value="school"]').uncheck();
-  await expect(page.locator('.event')).toHaveCount(6);
+  await expect(page.locator('.event')).toHaveCount(2);
   await page.getByRole('button', { name: 'Månad', exact: true }).click();
   await expect(page.locator('.month-event').filter({ hasText: 'Skoldag' })).toHaveCount(0);
   await page.reload();
@@ -208,4 +208,16 @@ test('private family setup imports weekly lessons that survive reload and future
   await page.clock.setFixedTime(new Date('2028-11-14T12:00:00Z'));
   await page.reload();
   await expect(page.locator('.event').filter({ hasText: 'MTID' })).toHaveCount(1);
+});
+
+test('only Familj remains among the old default activity calendars and iCloud can be connected', async ({ page }) => {
+  await page.route('**/api/connections', route => route.fulfill({ json: { connections: [] } }));
+  await page.goto('/');
+  for (const name of ['Fotboll', 'Gymnastik', 'Egna aktiviteter']) await expect(page.locator('#source-filters')).not.toContainText(name);
+  await expect(page.locator('#source-filters')).toContainText('Familj');
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  const source = page.locator('.source-card').filter({ has: page.getByRole('heading', { name: 'Familj', exact: true }) });
+  await expect(source).toContainText('Håkan, Johanna');
+  await source.getByRole('button', { name: 'Anslut kalender' }).click();
+  await expect(page.getByRole('heading', { name: 'Anslut Apple / iCloud' })).toBeVisible();
 });

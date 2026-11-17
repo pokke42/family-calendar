@@ -47,7 +47,7 @@ Föreslagen datamodell: `families`, `family_members`, `people`, `calendar_source
 
 | Källa | Import i prototypen | Automatisk koppling som återstår |
 | --- | --- | --- |
-| Apple/iCloud | Exporterad ICS-fil | Serverhämtad kalenderprenumeration om sådan kan delas. Privat iCloud-koppling behöver separat autentisering/CalDAV-utredning. Publicera inte en privat familjekalender enbart för denna demo. |
+| Apple/iCloud | Serverhämtad prenumeration eller ICS-fil | Familj kopplas till Håkan och Johanna. Publicerad prenumeration är skrivskyddad; privat kontokoppling kräver separat autentisering. |
 | Outlook | Exporterad ICS-fil | Kalenderprenumeration om tillgänglig, alternativt Microsoft Graph med delegerad OAuth och minsta läsbehörighet. |
 | InfoMentor | ICS-fil eller serverhämtad kalenderprenumeration | Kräver en fungerande prenumerationslänk från skolan. |
 | SportAdmin | ICS-fil eller serverhämtad kalenderprenumeration | Kallelsesvar behöver separat integrationsstöd. |
@@ -70,4 +70,4 @@ En separat privat `*.family.private.json`-fil kan importeras via **Hantera kalen
 
 På Mac: `cd /Users/hakanroos/Documents/ChatGPT/family-cal`, `git pull`, `npm ci --include=dev`, `npm run build`, `npm run dev`. Öppna sedan http://localhost:3000 och importera den privata familjefilen. Servern behöver vara igång för uppdateringar. Spara den privata filen separat från GitHub.
 
-Safari kan inte läsa Kalender-appens iCloud-data genom att användaren är inloggad på iPaden. iCloud behöver en egen autentiserad serverkoppling eller ICS-import. iPadens konto ger inte denna webbapp kalenderbehörighet.
+Safari kan inte läsa Kalender-appens iCloud-data genom iPadens kontoinloggning. Källan Familj stöder i stället publicerad iCloud-prenumeration via servern, samt ICS-import. Länken lagras bara på servern och i den privata familjefilen. Kopplingen läser kalendern; nya aktiviteter i appen sparas lokalt och skrivs inte tillbaka till iCloud. De tidigare källorna Fotboll, Gymnastik och Egna aktiviteter tas bort vid uppgradering. Egna lokala aktiviteter flyttas till Familj.

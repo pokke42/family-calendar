@@ -1,6 +1,16 @@
 import ICAL from 'ical.js';
 
 export const categories = { school: 'Skola', sport: 'Idrott', family: 'Familj', other: 'Övrigt' };
+export const retiredSources = ['football', 'gym', 'manual'];
+export function migrateSources(state) {
+  state.sources = state.sources.filter(source => !retiredSources.includes(source.id));
+  const family = { id: 'icloud', name: 'Familj', provider: 'Apple / iCloud', people: ['1', '2'], category: 'family' };
+  const existing = state.sources.find(source => source.id === 'icloud');
+  if (existing) Object.assign(existing, family); else state.sources.unshift(family);
+  state.events = state.events.filter(event => !['football', 'gym'].includes(event.sourceId))
+    .map(event => event.sourceId === 'manual' ? { ...event, sourceId: 'icloud' } : event);
+  return state;
+}
 export function localDate(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

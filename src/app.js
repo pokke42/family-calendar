@@ -1,4 +1,4 @@
-import { categories, localDate, startOfWeek, addDays, visibleEvents, safeUrl, importCalendar, viewRange, navigateDate, migrateFamilyNames } from './calendar.js';
+import { categories, localDate, startOfWeek, addDays, visibleEvents, safeUrl, importCalendar, viewRange, navigateDate, migrateFamilyNames, migrateSources, retiredSources } from './calendar.js';
 
 import { renderTimeGrid, renderMonth, positionTimeEvents } from './views.js';
 
@@ -15,12 +15,9 @@ let messageTimeout, returnFocus;
 function initialState() {
   const people = [{ id: '1', name: 'Håkan' }, { id: '2', name: 'Johanna' }, { id: '3', name: 'Olle' }, { id: '4', name: 'Emil' }];
   const sources = [
-    { id: 'icloud', name: 'Gemensam kalender', provider: 'Apple / iCloud', people: ['1', '2'], category: 'family' },
+    { id: 'icloud', name: 'Familj', provider: 'Apple / iCloud', people: ['1', '2'], category: 'family' },
     { id: 'outlook', name: 'Jobb & planering', provider: 'Outlook', people: ['1'], category: 'other' },
     { id: 'school', name: 'Skolschema', provider: 'InfoMentor', people: ['3', '4'], category: 'school' },
-    { id: 'football', name: 'Fotboll', provider: 'SportAdmin', people: ['3'], category: 'sport' },
-    { id: 'gym', name: 'Gymnastik', provider: 'Svenska Lag', people: ['4'], category: 'sport' },
-    { id: 'manual', name: 'Egna aktiviteter', provider: 'Hemma', people: ['1', '2', '3', '4'], category: 'family' }
   ];
   const events = [];
   function sample(day, hour, minutes, duration, title, personIds, category, sourceId, location) {
@@ -31,12 +28,8 @@ function initialState() {
     sample(day, 8, 15, 360, 'Skoldag', ['3'], 'school', 'school', 'Klass 4');
     sample(day, 8, 30, 330, 'Skoldag', ['4'], 'school', 'school', 'Klass 2');
   });
-  sample(0, 17, 30, 90, 'Fotbollsträning', ['3'], 'sport', 'football', 'Idrottsplatsen');
-  sample(1, 18, 0, 60, 'Gymnastik', ['4'], 'sport', 'gym', 'Sporthallen');
-  sample(2, 17, 0, 90, 'Fotbollsträning', ['3'], 'sport', 'football', 'Idrottsplatsen');
   sample(3, 16, 30, 45, 'Planera nästa vecka', ['1', '2'], 'family', 'icloud', 'Hemma');
   sample(4, 18, 0, 120, 'Fredagsmiddag', ['1', '2', '3', '4'], 'family', 'icloud', 'Hemma');
-  sample(5, 10, 0, 90, 'Fotbollsmatch', ['3'], 'sport', 'football', 'Idrottsplatsen');
   return { version: 1, demo: true, people, sources, events };
 }
 let state;
@@ -46,6 +39,7 @@ try {
   state = raw ? JSON.parse(raw) : initialState();
   if (state.version !== 1 || !Array.isArray(state.events) || !Array.isArray(state.people) || !Array.isArray(state.sources)) throw new Error('Invalid data');
 } catch { state = initialState(); storageProblem = 'Sparade uppgifter kunde inte läsas. Exempeldata visas; originalet har inte skrivits över.'; }
+migrateSources(state);
 const migratedPeople = migrateFamilyNames(state.people);
 if (JSON.stringify(state.people) !== JSON.stringify(migratedPeople)) {
   state.people = migratedPeople;
@@ -204,13 +198,13 @@ $('#new-event').addEventListener('click', () => {
     const start = new Date(`${data.get('date')}T${data.get('start')}`), end = new Date(`${data.get('date')}T${data.get('end')}`);
     const people = data.getAll('people'), title = data.get('title').trim(), url = data.get('url').trim();
     if (!title || !people.length || !(end > start) || (url && !safeUrl(url))) { $('#form-error').textContent = 'Ange en rubrik, välj minst en person och en sluttid efter starttiden. Eventuell länk måste börja med https://.'; return; }
-    state.events.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`, title, start: start.toISOString(), end: end.toISOString(), people, category: data.get('category'), sourceId: 'manual', location: data.get('location').trim(), url: safeUrl(url) });
-    const saved = persist(); focusDate = start; selectedSources = [...new Set([...selectedSources, 'manual'])]; selectedCategories = [...new Set([...selectedCategories, data.get('category')])]; selectedPeople = [...new Set([...selectedPeople, ...people])];
+    state.events.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}`, title, start: start.toISOString(), end: end.toISOString(), people, category: data.get('category'), sourceId: 'icloud', location: data.get('location').trim(), url: safeUrl(url) });
+    const saved = persist(); focusDate = start; selectedSources = [...new Set([...selectedSources, 'icloud'])]; selectedCategories = [...new Set([...selectedCategories, data.get('category')])]; selectedPeople = [...new Set([...selectedPeople, ...people])];
     closeModal(); render(); if (saved) notify('Aktiviteten är sparad på den här enheten.');
   };
 });
 function showSources() {
-  openModal('Familjens kalendrar', `<p>Anslut en kalenderprenumeration för automatisk uppdatering var 15:e minut medan servern körs. Du kan också importera en ICS-fil manuellt.</p><p class="subtle">${connectionService === 'ready' ? 'Kalenderservern är tillgänglig.' : escape(connectionServiceError || 'Kontrollerar kalenderservern…')}</p><p class="subtle">Importfönster: en månad bakåt och cirka ett år framåt. Kalenderns tider visas i enhetens tidszon. Välj en egen källa per barn eller lag om de ska kunna filtreras var för sig.</p>${state.sources.filter(s => s.id !== 'manual').map(s => `<div class="source-card"><h3>${escape(s.name)}</h3><p>${escape(s.provider)} · ${escape(personNames(s.people))} · ${escape(categories[s.category])}</p><p class="subtle">${connections.find(c => c.source.id === s.id) ? (connections.find(c => c.source.id === s.id).lastSuccess ? 'Ansluten kalenderprenumeration' : 'Länk sparad – väntar på lyckad synk') : s.lastImport ? 'Senast importerad: ' + escape(new Date(s.lastImport).toLocaleString('sv-SE')) : 'Inte ansluten · inga kalenderuppgifter hämtas automatiskt'}</p>${connectionControls(s)}</div>`).join('')}<button type="button" id="family-setup">Importera privat familjefil</button><input type="file" id="setup-file" accept=".json,application/json" hidden><input type="file" id="ics-file" accept=".ics,text/calendar" hidden><p id="import-error" class="error" role="alert"></p><div class="form-actions"><button type="button" id="edit-people">Ändra namn</button><button type="button" id="add-source" class="primary">＋ Lägg till källa</button></div><p class="subtle">Apple/iCloud: Safari kan inte läsa enhetens kalender via iPadens inloggning. Importera en ICS-export; en separat autentiserad iCloud-koppling behövs för privat automatisk synk. Outlook: importera ICS. InfoMentor, SportAdmin och Svenska Lag: anslut kalenderprenumeration om den erbjuds. Detta ger läsning av kalendern, inte kontoinloggning eller möjlighet att svara på kallelser.</p>`);
+  openModal('Familjens kalendrar', `<p>Anslut en kalenderprenumeration för automatisk uppdatering var 15:e minut medan servern körs. Du kan också importera en ICS-fil manuellt.</p><p class="subtle">${connectionService === 'ready' ? 'Kalenderservern är tillgänglig.' : escape(connectionServiceError || 'Kontrollerar kalenderservern…')}</p><p class="subtle">Importfönster: en månad bakåt och cirka ett år framåt. Kalenderns tider visas i enhetens tidszon. Välj en egen källa per barn eller lag om de ska kunna filtreras var för sig.</p>${state.sources.filter(s => s.id !== 'manual').map(s => `<div class="source-card"><h3>${escape(s.name)}</h3><p>${escape(s.provider)} · ${escape(personNames(s.people))} · ${escape(categories[s.category])}</p><p class="subtle">${connections.find(c => c.source.id === s.id) ? (connections.find(c => c.source.id === s.id).lastSuccess ? 'Ansluten kalenderprenumeration' : 'Länk sparad – väntar på lyckad synk') : s.lastImport ? 'Senast importerad: ' + escape(new Date(s.lastImport).toLocaleString('sv-SE')) : 'Inte ansluten · inga kalenderuppgifter hämtas automatiskt'}</p>${connectionControls(s)}</div>`).join('')}<button type="button" id="family-setup">Importera privat familjefil</button><input type="file" id="setup-file" accept=".json,application/json" hidden><input type="file" id="ics-file" accept=".ics,text/calendar" hidden><p id="import-error" class="error" role="alert"></p><div class="form-actions"><button type="button" id="edit-people">Ändra namn</button><button type="button" id="add-source" class="primary">＋ Lägg till källa</button></div><p class="subtle">Apple/iCloud: anslut Familj med kalenderns prenumerationslänk. iPadens kontoinloggning ger inte automatiskt åtkomst. Outlook: importera ICS. InfoMentor, SportAdmin och Svenska Lag: anslut kalenderprenumeration om den erbjuds. Detta ger läsning av kalendern, inte kontoinloggning eller möjlighet att svara på kallelser.</p>`);
   $('#modal-body').querySelectorAll('[data-import]').forEach(button => {
     button.onclick = () => {
       const source = state.sources.find(s => s.id === button.dataset.import);
@@ -296,7 +290,7 @@ function calendarEvents() {
 function connectionControls(source) {
   const connection = connections.find(c => c.source.id === source.id);
   if (connection) return `<p class="subtle">Senaste lyckade synk: ${escape(connection.lastSuccess ? new Date(connection.lastSuccess).toLocaleString('sv-SE') : 'Ingen lyckad hämtning ännu')} · ${connection.events.length} aktiviteter</p>${connection.error ? `<p class="error">${escape(connection.error)}</p>` : ''}<div class="source-actions"><button data-sync="${escape(source.id)}">Uppdatera nu</button><button data-connect="${escape(source.id)}">Byt länk</button><button data-disconnect="${escape(source.id)}">Koppla från</button></div>`;
-  return `<div class="source-actions">${['InfoMentor', 'SportAdmin', 'Svenska Lag'].includes(source.provider) ? `<button data-connect="${escape(source.id)}" ${connectionService !== 'ready' ? 'disabled' : ''}>Anslut kalender</button>` : ''}<button type="button" data-import="${escape(source.id)}">Importera ICS-fil</button></div>`;
+  return `<div class="source-actions">${['Apple / iCloud', 'InfoMentor', 'SportAdmin', 'Svenska Lag'].includes(source.provider) ? `<button data-connect="${escape(source.id)}" ${connectionService !== 'ready' ? 'disabled' : ''}>Anslut kalender</button>` : ''}<button type="button" data-import="${escape(source.id)}">Importera ICS-fil</button></div>`;
 }
 async function connectionRequest(path = '', body) {
   let response;
@@ -306,7 +300,7 @@ async function connectionRequest(path = '', body) {
   let data;
   try { data = await response.json(); } catch { throw new Error('Kalenderanslutningar kräver Node-servern. Starta npm run dev och öppna appen via localhost på datorn.'); }
   if (!response.ok) throw new Error(data.error || 'Anslutningen misslyckades.');
-  connections = data.connections;
+  connections = data.connections.filter(c => !retiredSources.includes(c.source.id)).map(c => c.source.id === 'icloud' ? { ...c, source: { ...c.source, name: 'Familj', people: ['1', '2'], category: 'family' } } : c);
   connectionService = 'ready'; connectionServiceError = '';
   let added = false;
   connections.forEach(c => {
@@ -350,6 +344,7 @@ function bindConnectionButtons() {
 }
 function showConnect(source) {
   const guides = {
+    'Apple / iCloud': 'Klistra in prenumerationslänken från den delade iCloud-kalendern Familj. Den läses av servern och kopplas till Håkan och Johanna. Kopplingen är skrivskyddad.',
     'Svenska Lag': 'Öppna lagets kalender i Svenska Lag och leta efter Prenumerera eller Kalenderprenumeration. Kopiera kalenderlänken, inte adressen till lagets webbsida.',
     SportAdmin: 'Öppna kalendern i SportAdmin och leta efter kalenderprenumeration eller export till annan kalender. Om en länk erbjuds, kopiera den. Alternativen kan skilja sig mellan föreningar och appversioner.',
     InfoMentor: 'Öppna barnets schema eller kalender i InfoMentor. Om skolan erbjuder en prenumerationslänk, kopiera den. Om schemat öppnas i en annan tjänst behövs kalenderlänken från den tjänsten. Utan en sådan länk behövs skolans hjälp eller ICS-export.'

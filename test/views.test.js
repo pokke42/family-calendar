@@ -1,6 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { viewRange, navigateDate, layoutDayEvents, migrateFamilyNames, localDate, visibleEvents } from '../src/calendar.js';
+import { viewRange, navigateDate, layoutDayEvents, migrateFamilyNames, migrateSources, localDate, visibleEvents } from '../src/calendar.js';
+
+test('retires old activity filters and migrates local events into Familj without losing them', () => {
+  const state = migrateSources({ sources: [{ id: 'football' }, { id: 'gym' }, { id: 'manual' }, { id: 'icloud', name: 'Gemensam kalender' }, { id: 'emil-sportadmin' }], events: [
+    { id: 'old-sport', sourceId: 'football' }, { id: 'old-gym', sourceId: 'gym' }, { id: 'local', sourceId: 'manual' }, { id: 'actual', sourceId: 'emil-sportadmin' }
+  ] });
+  assert.deepEqual(state.sources.map(s => s.id), ['icloud', 'emil-sportadmin']);
+  assert.equal(state.sources[0].name, 'Familj');
+  assert.deepEqual(state.sources[0].people, ['1', '2']);
+  assert.deepEqual(state.events.map(e => e.id), ['local', 'actual']);
+  assert.equal(state.events[0].sourceId, 'icloud');
+});
 
 test('month includes 42 Monday-first cells, including adjacent month events', () => {
   const { start, end } = viewRange(new Date(2026, 10, 17), 'month');

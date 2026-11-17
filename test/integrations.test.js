@@ -24,6 +24,8 @@ async function fixture(t, fetchFeed) {
 test('validates providers, webcal, redirects destinations and rejects private/network-unsafe URLs', () => {
   assert.equal(normalizeFeedUrl('webcal://www.svenskalag.se/calendar', 'Svenska Lag').protocol, 'https:');
   assert.equal(normalizeFeedUrl('webcals://im2-api.infomentor.se/feed', 'InfoMentor').protocol, 'https:');
+  assert.equal(normalizeFeedUrl('webcal://p71-caldav.icloud.com/published/2/test', 'Apple / iCloud').protocol, 'https:');
+  assert.throws(() => normalizeFeedUrl('https://icloud.com.evil.example/feed', 'Apple / iCloud'));
   assert.equal(normalizeFeedUrl('https://api.sportadmin.se/feed', 'SportAdmin').hostname, 'api.sportadmin.se');
   assert.equal(normalizeFeedUrl('https://schema.school.example/ics', 'InfoMentor', ['schema.school.example']).hostname, 'schema.school.example');
   for (const invalid of ['http://www.svenskalag.se/feed', 'https://svenskalag.se.evil.example/feed', 'https://user:pass@www.svenskalag.se/feed', 'https://127.0.0.1/feed', 'https://www.svenskalag.se:8443/feed']) assert.throws(() => normalizeFeedUrl(invalid, 'Svenska Lag'));
