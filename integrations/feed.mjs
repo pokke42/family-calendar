@@ -1,6 +1,7 @@
 import https from 'node:https';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { MAX_SERVER_CALENDAR_BYTES } from './limits.mjs';
 
 export class FeedError extends Error {
   constructor(code, message) { super(message); this.name = 'FeedError'; this.code = code; }
@@ -75,19 +76,25 @@ export async function fetchCalendar(value, provider, extraHosts = [], redirects 
       if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') {
         response.resume(); finish(reject, new FeedError('ENCODING', 'Kalenderservern skickade komprimerad data trots begäran om okomprimerad kalender.')); return;
       }
-      let size = 0; const chunks = [];
-      response.on('data', chunk => {
-        size += chunk.length;
-        if (size > 2_000_000) { response.destroy(); finish(reject, new FeedError('SIZE', 'Kalendern överstiger gränsen på 2 MB.')); return; }
-        chunks.push(chunk);
-      });
-      response.on('error', () => finish(reject, new Error('Överföringen av kalendern avbröts.')));
-      response.on('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8').replace(/^\uFEFF/, '');
-        if (!/^\s*BEGIN:VCALENDAR\s*\r?\n/i.test(text)) { finish(reject, new FeedError('NOT_CALENDAR', 'Länken gav ingen ICS-kalender. Kopiera prenumerationslänken i tjänsten.')); return; }
-        finish(resolve, text);
-      });
+      readCalendarBody(response).then(text => finish(resolve, text), error => finish(reject, error));
     });
     request.on('error', error => finish(reject, networkFailure(error)));
   });
+}
+
+export async function readCalendarBody(response) {
+  let size = 0; const chunks = [];
+  try {
+    for await (const chunk of response) {
+      size += chunk.length;
+      if (size > MAX_SERVER_CALENDAR_BYTES) throw new FeedError('SIZE', 'Kalendern överstiger servergränsen på 20 MB.');
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    if (error instanceof FeedError) throw error;
+    throw new FeedError('TRANSFER', 'Överföringen av kalendern avbröts. Försök igen senare.');
+  }
+  const text = Buffer.concat(chunks).toString('utf8').replace(/^\uFEFF/, '');
+  if (!/^\s*BEGIN:VCALENDAR\s*\r?\n/i.test(text)) throw new FeedError('NOT_CALENDAR', 'Länken gav ingen ICS-kalender. Kopiera prenumerationslänken i tjänsten.');
+  return text;
 }

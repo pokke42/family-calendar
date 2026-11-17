@@ -29,7 +29,7 @@ Utvecklingsservern lyssnar på port 3000 (`PORT` kan ändra porten). Den servera
 - Återkommande händelser, undantag, flyttade händelser, heldagar och tidszonsdefinitioner i ICS. Kalenderlänkar från `URL` öppnas i källtjänsten.
 - Lokal lagring på just den enheten. Anslutna kalenderlänkar lagras på den lokala Node-servern; hämtade aktiviteter läses därifrån. Exempeldata är tydligt märkt och kan tömmas.
 
-Importen är en ögonblicksbild, inte en prenumeration. Den omfattar cirka en månad bakåt och ett år framåt. Nästa import ersätter tidigare importerade händelser från samma källa. Begränsningar: 2 MB per fil, 5 000 händelser per import och högst 30 000 upprepningssteg. Kalenderns `VTIMEZONE` eller UTC krävs för tidsatta zonbundna händelser; okända tidszoner avvisas i stället för att gissa. Flytande tider visas som lokal tid. Lokal data kan försvinna när Safari rensas och delas inte mellan enheter. Det finns ännu ingen redigering av importerade händelser eller export av den lokala kalendern.
+Importen är en ögonblicksbild, inte en prenumeration. Den omfattar cirka en månad bakåt och ett år framåt. Nästa import ersätter tidigare importerade händelser från samma källa. Begränsningar: 2 MB per manuellt importerad fil i webbläsaren, 20 MB för serverhämtade prenumerationer och 5 000 händelser per import och högst 30 000 upprepningssteg. Kalenderns `VTIMEZONE` eller UTC krävs för tidsatta zonbundna händelser; okända tidszoner avvisas i stället för att gissa. Flytande tider visas som lokal tid. Lokal data kan försvinna när Safari rensas och delas inte mellan enheter. Det finns ännu ingen redigering av importerade händelser eller export av den lokala kalendern.
 
 ## iPad Air 2
 
@@ -107,3 +107,6 @@ Aktiviteter som skapas manuellt, namnändringar, filter och färgval är fortfar
 ## Felsöka misslyckad kalendersynk
 
 På Macen, från projektmappen, kör `npm run diagnose -- icloud`. Kommandot läser den sparade anslutningen och gör en ny hämtning och import utan att ändra inställningar eller cache. Det skriver bara ut steg, felkod, en säker felbeskrivning och vid framgång storlek och antal aktiviteter. Privata länkar och aktivitetstexter skrivs inte ut. Koder: DNS (namnuppslagning), TLS (certifikat), TIMEOUT, HTTP_401/403/404/410 etc., NOT_CALENDAR, TIMEZONE, EVENT_FIELDS, RECURRENCE_LIMIT och PARSE. Ett misslyckat test avslutas med status 1. Skicka den utskrivna diagnosen för fortsatt felsökning. Starta om servern efter `git pull` för att även få de nya felmeddelandena i appen. Byt inte kalenderlänk enbart utifrån det äldre generella synkfelet.
+
+
+Serverhämtning och diagnos stöder kalenderfiler upp till 20 MB, exempelvis iCloud-kalendrar med lång historik. Servern tolkar filen och sparar bara normaliserade aktiviteter inom importfönstret (cirka en månad bakåt och ett år framåt); råfil, gamla aktivitetstexter och bilagor skickas inte till iPaden. Manuell import i webbläsaren har kvar gränsen 2 MB. Gränserna för antal aktiviteter och upprepningar finns kvar. Kör `npm run diagnose -- icloud` igen efter uppdatering om tidigare fel var SIZE och starta om servern för att använda den nya gränsen.

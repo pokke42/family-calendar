@@ -76,8 +76,8 @@ export function safeUrl(value) {
 }
 
 // Bound imports to a one-year window and limit expansion to protect older tablets.
-export function importCalendar(text, source, from = new Date()) {
-  if (text.length > 2_000_000) throw new Error('Filen är för stor. Gränsen är 2 MB.');
+export function importCalendar(text, source, from = new Date(), { maxLength = 2_000_000 } = {}) {
+  if (text.length > maxLength) throw new Error(`Filen är för stor. Gränsen är ${maxLength / 1_000_000} MB.`);
   const root = new ICAL.Component(ICAL.parse(text));
   if (root.name !== 'vcalendar') throw new Error('Filen är inte en iCalendar-kalender.');
   ICAL.TimezoneService.reset();
@@ -98,12 +98,19 @@ export function importCalendar(text, source, from = new Date()) {
     }
   }
   const masters = components.filter(c => !c.hasProperty('recurrence-id'));
+  const exceptions = new Map();
+  for (const component of components) {
+    if (!component.hasProperty('recurrence-id')) continue;
+    const uid = component.getFirstPropertyValue('uid');
+    if (!exceptions.has(uid)) exceptions.set(uid, []);
+    exceptions.get(uid).push(component);
+  }
   const output = [];
   let examined = 0;
   for (const component of masters) {
     const event = new ICAL.Event(component);
     if (component.getFirstPropertyValue('status') === 'CANCELLED') continue;
-    components.filter(c => c.hasProperty('recurrence-id') && c.getFirstPropertyValue('uid') === event.uid)
+    (exceptions.get(event.uid) || [])
       .forEach(c => event.relateException(new ICAL.Event(c)));
     const record = (start, end, item) => {
       if (item.component.getFirstPropertyValue('status') === 'CANCELLED') return;

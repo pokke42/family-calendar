@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { importCalendar, categories } from '../src/calendar.js';
 import { fetchCalendar, normalizeFeedUrl, FeedError } from './feed.mjs';
+import { importServerCalendar } from './server-calendar.mjs';
 
 export class CalendarConnections {
   constructor(file, { fetchFeed = fetchCalendar, extraHosts = [], now = () => new Date() } = {}) {
@@ -52,7 +53,7 @@ export class CalendarConnections {
       return;
     }
     try {
-      const events = importCalendar(text, connection.source, this.now());
+      const events = importServerCalendar(text, connection.source, this.now());
       connection.events = events.map(event => ({ ...event, synced: true }));
       connection.lastSuccess = this.now().toISOString(); connection.error = null; connection.errorCode = null;
     } catch (error) {
@@ -107,7 +108,7 @@ export function importFailure(error) {
   const message = String(error?.message || '');
   if (/Tidszonen/.test(message)) return { code: 'TIMEZONE', message: 'Kalendern hämtades, men innehåller en tidszon utan definition. Exportera en ICS-fil med tidszon från källtjänsten.' };
   if (/starttid eller kalender-id/.test(message)) return { code: 'EVENT_FIELDS', message: 'Kalendern hämtades, men minst en aktivitet saknar starttid eller kalender-id.' };
-  if (/stor/.test(message)) return { code: 'SIZE', message: 'Kalendern hämtades, men överstiger importgränsen på 2 MB.' };
+  if (/stor/.test(message)) return { code: 'SIZE', message: 'Kalendern hämtades, men överstiger serverns importgräns på 20 MB.' };
   if (/omfattande|För många/.test(message)) return { code: 'RECURRENCE_LIMIT', message: 'Kalendern hämtades, men innehåller för många aktiviteter eller upprepningar för importgränsen.' };
   return { code: 'PARSE', message: 'Kalendern hämtades, men ICS-innehållet kunde inte tolkas.' };
 }

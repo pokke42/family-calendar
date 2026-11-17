@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { fetchCalendar, FeedError } from './feed.mjs';
 import { importFailure } from './store.mjs';
-import { importCalendar } from '../src/calendar.js';
+import { importServerCalendar } from './server-calendar.mjs';
 
 export async function diagnoseConnection(connection, fetchFeed = fetchCalendar) {
   let text;
@@ -11,7 +11,7 @@ export async function diagnoseConnection(connection, fetchFeed = fetchCalendar) 
     return { ok: false, stage: 'Hämtning', code: error instanceof FeedError ? error.code : 'FETCH', message: error instanceof FeedError ? error.message : 'Kalendern kunde inte hämtas.' };
   }
   try {
-    const events = importCalendar(text, connection.source);
+    const events = importServerCalendar(text, connection.source);
     return { ok: true, stage: 'Klar', bytes: Buffer.byteLength(text), activities: events.length };
   } catch (error) { return { ok: false, stage: 'Kalendertolkning', ...importFailure(error) }; }
 }
