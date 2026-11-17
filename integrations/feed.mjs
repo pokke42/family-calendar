@@ -2,6 +2,17 @@ import https from 'node:https';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
+export class FeedError extends Error {
+  constructor(code, message) { super(message); this.name = 'FeedError'; this.code = code; }
+}
+export function networkFailure(error) {
+  const code = String(error?.code || '');
+  if (['ENOTFOUND', 'EAI_AGAIN'].includes(code)) return new FeedError('DNS', 'Kalenderserverns adress kunde inte slås upp (DNS). Kontrollera internetanslutningen och eventuellt VPN på Macen.');
+  if (code.includes('CERT') || code.startsWith('ERR_TLS') || code.includes('SELF_SIGNED')) return new FeedError('TLS', 'Säker anslutning till kalendertjänsten misslyckades (TLS). Kontrollera Macens datum och nätverkets certifikat.');
+  if (['ABORT_ERR', 'ETIMEDOUT'].includes(code)) return new FeedError('TIMEOUT', 'Kalendertjänsten svarade inte inom 15 sekunder. Försök igen senare.');
+  return new FeedError('NETWORK', 'Kalendertjänsten kunde inte nås. Kontrollera internetanslutningen på Macen.');
+}
+
 const domains = {
   'Apple / iCloud': ['icloud.com'],
   InfoMentor: ['infomentor.se', 'infomentor.nu'],
@@ -35,7 +46,14 @@ export function publicIPv4(address) {
 // Pin the validated public DNS address to the TLS connection. Revalidate every redirect.
 export async function fetchCalendar(value, provider, extraHosts = [], redirects = 0) {
   const url = normalizeFeedUrl(value, provider, extraHosts);
-  const addresses = await lookup(url.hostname, { family: 4, all: true });
+  let addresses;
+  let timer;
+  try {
+    addresses = await Promise.race([
+      lookup(url.hostname, { family: 4, all: true }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject({ code: 'ETIMEDOUT' }), 15000); })
+    ]);
+  } catch (error) { throw networkFailure(error); } finally { clearTimeout(timer); }
   if (!addresses.length || addresses.some(item => !publicIPv4(item.address))) throw new Error('Kalendervärden måste ha en publik internetadress.');
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
@@ -53,23 +71,23 @@ export async function fetchCalendar(value, provider, extraHosts = [], redirects 
         try { next = new URL(response.headers.location, url).href; } catch { reject(new Error('Ogiltig omdirigering.')); return; }
         fetchCalendar(next, provider, extraHosts, redirects + 1).then(resolve, reject); return;
       }
-      if (response.statusCode !== 200) { response.resume(); finish(reject, new Error('Kalendern kunde inte hämtas. Kontrollera att prenumerationslänken fortfarande gäller.')); return; }
+      if (response.statusCode !== 200) { response.resume(); finish(reject, new FeedError('HTTP_' + response.statusCode, `Kalendertjänsten svarade HTTP ${response.statusCode}. ${[401, 403, 404, 410].includes(response.statusCode) ? 'Kontrollera att kalendern fortfarande delas och kopiera prenumerationslänken på nytt från källtjänsten.' : 'Försök igen senare.'}`)); return; }
       if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') {
-        response.resume(); finish(reject, new Error('Kalenderservern skickade ett format som inte stöds.')); return;
+        response.resume(); finish(reject, new FeedError('ENCODING', 'Kalenderservern skickade komprimerad data trots begäran om okomprimerad kalender.')); return;
       }
       let size = 0; const chunks = [];
       response.on('data', chunk => {
         size += chunk.length;
-        if (size > 2_000_000) { response.destroy(); finish(reject, new Error('Kalendern överstiger gränsen på 2 MB.')); return; }
+        if (size > 2_000_000) { response.destroy(); finish(reject, new FeedError('SIZE', 'Kalendern överstiger gränsen på 2 MB.')); return; }
         chunks.push(chunk);
       });
       response.on('error', () => finish(reject, new Error('Överföringen av kalendern avbröts.')));
       response.on('end', () => {
         const text = Buffer.concat(chunks).toString('utf8').replace(/^\uFEFF/, '');
-        if (!/^\s*BEGIN:VCALENDAR\s*\r?\n/i.test(text)) { finish(reject, new Error('Länken gav ingen ICS-kalender. Kopiera prenumerationslänken i tjänsten.')); return; }
+        if (!/^\s*BEGIN:VCALENDAR\s*\r?\n/i.test(text)) { finish(reject, new FeedError('NOT_CALENDAR', 'Länken gav ingen ICS-kalender. Kopiera prenumerationslänken i tjänsten.')); return; }
         finish(resolve, text);
       });
     });
-    request.on('error', () => finish(reject, new Error('Kalendertjänsten kunde inte nås. Försök igen senare.')));
+    request.on('error', error => finish(reject, networkFailure(error)));
   });
 }

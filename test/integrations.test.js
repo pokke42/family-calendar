@@ -137,3 +137,29 @@ test('API connects, lists, refreshes and deletes subscriptions without exposing 
   assert.equal((await post('/api/connections/disconnect', { id: source.id })).status, 200);
   assert.equal((await (await fetch(base + '/api/connections')).json()).connections.length, 0);
 });
+
+test('diagnostics identify HTTP, DNS, TLS and parser failures without private details', async t => {
+  const { FeedError, networkFailure } = await import('../integrations/feed.mjs');
+  const { diagnoseConnection } = await import('../integrations/diagnose.mjs');
+  for (const [code, expected] of [['EAI_AGAIN', 'DNS'], ['ENOTFOUND', 'DNS'], ['CERT_HAS_EXPIRED', 'TLS'], ['ABORT_ERR', 'TIMEOUT'], ['ECONNRESET', 'NETWORK']]) {
+    const error = networkFailure({ code, message: url });
+    assert.equal(error.code, expected);
+    assert.ok(!error.message.includes('secret-test-value'));
+  }
+  const store = await fixture(t, async () => feed());
+  await store.connect({ source, url });
+  store.fetchFeed = async () => { throw new FeedError('HTTP_404', 'Kalendertjänsten svarade HTTP 404.'); };
+  await store.sync(source.id, true);
+  assert.equal(store.snapshot()[0].errorCode, 'HTTP_404');
+  assert.equal(store.snapshot()[0].events.length, 1);
+  const input = { source, url };
+  const result = await diagnoseConnection(input, store.fetchFeed);
+  assert.equal(result.stage, 'Hämtning'); assert.equal(result.code, 'HTTP_404');
+  const malformed = await diagnoseConnection(input, async () => 'secret-test-value');
+  assert.equal(malformed.stage, 'Kalendertolkning'); assert.equal(malformed.code, 'PARSE');
+  assert.ok(!JSON.stringify(malformed).includes('secret-test-value'));
+  const good = await diagnoseConnection(input, async () => feed());
+  assert.equal(good.ok, true);
+  store.fetchFeed = async () => feed(); await store.sync(source.id, true);
+  assert.equal(store.snapshot()[0].errorCode, null);
+});

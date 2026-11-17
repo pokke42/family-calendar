@@ -146,7 +146,7 @@ test('connects Emils SportAdmin through UI, shows failures and disconnects witho
     if (req.method() === 'POST') {
       const data = req.postDataJSON();
       if (path.endsWith('/disconnect')) connections = [];
-      else if (path.endsWith('/sync')) connections[0].error = 'Synk misslyckades. Senast hämtade aktiviteter behålls.';
+      else if (path.endsWith('/sync')) { connections[0].error = 'Synk misslyckades. Senast hämtade aktiviteter behålls.'; connections[0].errorCode = 'HTTP_404'; }
       else {
         expect(data.source.people).toEqual(['4']);
         expect(data.url).toContain(token);
@@ -173,6 +173,7 @@ test('connects Emils SportAdmin through UI, shows failures and disconnects witho
   await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
   await source.getByRole('button', { name: 'Uppdatera nu' }).click();
   await expect(source).toContainText('Synk misslyckades');
+  await expect(source).toContainText('HTTP_404');
   failed = true;
   await source.getByRole('button', { name: 'Byt länk' }).click();
   await page.getByLabel('Kalenderlänk').fill('https://portalweb.sportadmin.se/webcal?id=' + token);

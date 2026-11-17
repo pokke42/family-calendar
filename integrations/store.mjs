@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { importCalendar, categories } from '../src/calendar.js';
-import { fetchCalendar, normalizeFeedUrl } from './feed.mjs';
+import { fetchCalendar, normalizeFeedUrl, FeedError } from './feed.mjs';
 
 export class CalendarConnections {
   constructor(file, { fetchFeed = fetchCalendar, extraHosts = [], now = () => new Date() } = {}) {
@@ -42,16 +42,26 @@ export class CalendarConnections {
   }
   async refresh(connection) {
     connection.lastAttempt = this.now().toISOString();
+    let text;
     try {
-      const text = await this.fetchFeed(connection.url, connection.source.provider, this.extraHosts);
+      text = await this.fetchFeed(connection.url, connection.source.provider, this.extraHosts);
+    } catch (error) {
+      connection.errorCode = error instanceof FeedError ? error.code : 'FETCH';
+      connection.error = error instanceof FeedError ? error.message : 'Kalendern kunde inte hämtas. Kontrollera nätverket och prenumerationslänken på Macen.';
+      connection.error += ' Senast hämtade aktiviteter behålls.';
+      return;
+    }
+    try {
       const events = importCalendar(text, connection.source, this.now());
-      // Never return raw parser errors, which can contain private feed contents.
       connection.events = events.map(event => ({ ...event, synced: true }));
-      connection.lastSuccess = this.now().toISOString(); connection.error = null;
-    } catch {
-      connection.error = 'Synk misslyckades. Kontrollera kalenderlänken, nätverket och att filen är en giltig ICS-kalender med tidszon. Senast hämtade aktiviteter behålls.';
+      connection.lastSuccess = this.now().toISOString(); connection.error = null; connection.errorCode = null;
+    } catch (error) {
+      const problem = importFailure(error);
+      connection.errorCode = problem.code;
+      connection.error = problem.message + ' Senast hämtade aktiviteter behålls.';
     }
   }
+
   connect(input, { allowPending = false } = {}) {
     return this.serial(async () => {
       const source = input.source;
@@ -90,4 +100,14 @@ export class CalendarConnections {
       return this.snapshot();
     });
   }
+}
+
+// Map parser failures to fixed text; raw parser errors may include private event data.
+export function importFailure(error) {
+  const message = String(error?.message || '');
+  if (/Tidszonen/.test(message)) return { code: 'TIMEZONE', message: 'Kalendern hämtades, men innehåller en tidszon utan definition. Exportera en ICS-fil med tidszon från källtjänsten.' };
+  if (/starttid eller kalender-id/.test(message)) return { code: 'EVENT_FIELDS', message: 'Kalendern hämtades, men minst en aktivitet saknar starttid eller kalender-id.' };
+  if (/stor/.test(message)) return { code: 'SIZE', message: 'Kalendern hämtades, men överstiger importgränsen på 2 MB.' };
+  if (/omfattande|För många/.test(message)) return { code: 'RECURRENCE_LIMIT', message: 'Kalendern hämtades, men innehåller för många aktiviteter eller upprepningar för importgränsen.' };
+  return { code: 'PARSE', message: 'Kalendern hämtades, men ICS-innehållet kunde inte tolkas.' };
 }

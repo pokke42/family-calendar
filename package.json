@@ -7,7 +7,8 @@
     "dev": "node server.mjs",
     "build": "node build.mjs",
     "test": "node --test test/*.test.js",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "diagnose": "node integrations/diagnose.mjs"
   },
   "dependencies": {
     "ical.js": "2.2.1"
