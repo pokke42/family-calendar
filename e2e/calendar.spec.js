@@ -186,13 +186,14 @@ test('connects Emils SportAdmin through UI, shows failures and disconnects witho
 
 test('private family setup imports weekly lessons that survive reload and future years', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
-  let connections = [];
+  let connections = [], calendars;
   await page.route('**/api/connections**', async route => {
     if (route.request().method() === 'POST') {
-      const { source } = route.request().postDataJSON();
-      connections = [{ source, events: [], lastSuccess: null, error: 'Väntar på nätverk' }];
+      const input = route.request().postDataJSON();
+      if (input.calendars) calendars = input.calendars;
+      else connections = [{ source: input.source, events: [], lastSuccess: null, error: 'Väntar på nätverk' }];
     }
-    await route.fulfill({ json: { connections } });
+    await route.fulfill({ json: { connections, calendars } });
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
@@ -220,4 +221,33 @@ test('only Familj remains among the old default activity calendars and iCloud ca
   await expect(source).toContainText('Håkan, Johanna');
   await source.getByRole('button', { name: 'Anslut kalender' }).click();
   await expect(page.getByRole('heading', { name: 'Anslut Apple / iCloud' })).toBeVisible();
+});
+
+test('calendar color persists and applies to week, day and month events', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  await page.getByLabel('Färg för Familj', { exact: true }).fill('#cc3399');
+  await page.getByRole('button', { name: 'Stäng', exact: true }).click();
+  const event = page.locator('.event[data-calendar="icloud"]').first();
+  await expect(event).toHaveCSS('border-left-color', 'rgb(204, 51, 153)');
+  await page.getByRole('button', { name: 'Månad', exact: true }).click();
+  await expect(page.locator('.month-event[data-calendar="icloud"]').first()).toHaveCSS('border-left-color', 'rgb(204, 51, 153)');
+  await page.reload();
+  await expect(page.locator('.month-event[data-calendar="icloud"]').first()).toHaveCSS('border-left-color', 'rgb(204, 51, 153)');
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  await expect(page.getByLabel('Färg för Familj', { exact: true })).toHaveValue('#cc3399');
+});
+
+test('iPad reader loads shared school templates without demo data and keeps connection controls on the Mac', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
+  await page.route('**/api/connections', route => route.fulfill({ json: {
+    readOnly: true, connections: [], calendars: [{ source: { id: 'shared-school', name: 'Olles veckoschema', provider: 'PDF', people: ['3'], category: 'school' }, ics: 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:shared\r\nDTSTART:20261117T090000\r\nDTEND:20261117T100000\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:Delad lektion\r\nEND:VEVENT\r\nEND:VCALENDAR' }]
+  } }));
+  await page.goto('/');
+  await expect(page.locator('.event')).toHaveCount(1);
+  await expect(page.locator('.event')).toContainText('Delad lektion');
+  await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
+  await expect(page.getByRole('button', { name: 'Importera privat familjefil' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Anslut kalender', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Färg för Olles veckoschema')).toBeEnabled();
 });

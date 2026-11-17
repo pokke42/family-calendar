@@ -7,7 +7,7 @@ const sameDay = (event, date) => new Date(event.start) < addDays(date, 1) && new
 
 function eventButton(event, names, className = '') {
   const start = time.format(new Date(event.start)), end = time.format(new Date(event.end));
-  return `<button type="button" class="event person-${escape(event.people[0])} ${className}" data-event="${escape(event.id)}" aria-label="${escape(`${event.title}, ${event.allDay ? 'hela dagen' : start + '–' + end}, ${names(event.people)}`)}"><span class="event-title">${escape(event.title)}</span><span class="event-time">${event.allDay ? 'Hela dagen' : start + '–' + end}</span><span class="event-meta"><span class="event-person">${escape(names(event.people))}</span>${event.location ? '<span class="event-location"> · ' + escape(event.location) + '</span>' : ''}</span></button>`;
+  return `<button type="button" class="event person-${escape(event.people[0])} ${className}" data-calendar="${escape(event.sourceId)}" data-event="${escape(event.id)}" aria-label="${escape(`${event.title}, ${event.allDay ? 'hela dagen' : start + '–' + end}, ${names(event.people)}`)}"><span class="event-title">${escape(event.title)}</span><span class="event-time">${event.allDay ? 'Hela dagen' : start + '–' + end}</span><span class="event-meta"><span class="event-person">${escape(names(event.people))}</span>${event.location ? '<span class="event-location"> · ' + escape(event.location) + '</span>' : ''}</span></button>`;
 }
 
 export function renderTimeGrid(start, count, events, names) {

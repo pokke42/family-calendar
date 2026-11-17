@@ -2,6 +2,8 @@ import { categories, localDate, startOfWeek, addDays, visibleEvents, safeUrl, im
 
 import { renderTimeGrid, renderMonth, positionTimeEvents } from './views.js';
 
+import { calendarColor, applyCalendarColors } from './colors.js';
+
 const $ = selector => document.querySelector(selector);
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const storageKey = 'hemma-calendar-v1';
@@ -47,6 +49,7 @@ if (JSON.stringify(state.people) !== JSON.stringify(migratedPeople)) {
 }
 let connections = [];
 let weeklyCache = { key: '', templates: '', events: [] };
+let connectionReadOnly = false;
 let connectionService = 'loading';
 let connectionServiceError = '';
 if (!state.sources.some(s => s.id === 'emil-sportadmin')) {
@@ -93,6 +96,7 @@ function renderCalendar() {
   $('#view-description').innerHTML = state.people.map(person => `<span class="legend-person person-${escape(person.id)}">${escape(person.name)}</span>`).join('');
   $('#days').innerHTML = view === 'month' ? renderMonth(range.start, focusDate, events, personNames) : renderTimeGrid(range.start, view === 'day' ? 1 : 7, events, personNames);
   positionTimeEvents($('#days'));
+  applyCalendarColors(document, state.calendarColors || {});
   const scroll = $('.time-scroll');
   if (scroll && !document.body.classList.contains('calendar-fullscreen')) scroll.scrollTop = 7 * 48;
   $('#demo-notice').innerHTML = state.demo ? 'Exempeldata visas tillsammans med eventuella anslutna kalendrar. <button id="clear-demo" type="button">Ta bort exempeldata och lokala aktiviteter</button>' : connections.length ? 'Lokala aktiviteter och anslutna kalenderprenumerationer · Inloggning mellan enheter är ännu inte ansluten.' : 'Lokal kalender · Anslut en kalenderprenumeration under Hantera kalenderkällor.';
@@ -204,7 +208,7 @@ $('#new-event').addEventListener('click', () => {
   };
 });
 function showSources() {
-  openModal('Familjens kalendrar', `<p>Anslut en kalenderprenumeration för automatisk uppdatering var 15:e minut medan servern körs. Du kan också importera en ICS-fil manuellt.</p><p class="subtle">${connectionService === 'ready' ? 'Kalenderservern är tillgänglig.' : escape(connectionServiceError || 'Kontrollerar kalenderservern…')}</p><p class="subtle">Importfönster: en månad bakåt och cirka ett år framåt. Kalenderns tider visas i enhetens tidszon. Välj en egen källa per barn eller lag om de ska kunna filtreras var för sig.</p>${state.sources.filter(s => s.id !== 'manual').map(s => `<div class="source-card"><h3>${escape(s.name)}</h3><p>${escape(s.provider)} · ${escape(personNames(s.people))} · ${escape(categories[s.category])}</p><p class="subtle">${connections.find(c => c.source.id === s.id) ? (connections.find(c => c.source.id === s.id).lastSuccess ? 'Ansluten kalenderprenumeration' : 'Länk sparad – väntar på lyckad synk') : s.lastImport ? 'Senast importerad: ' + escape(new Date(s.lastImport).toLocaleString('sv-SE')) : 'Inte ansluten · inga kalenderuppgifter hämtas automatiskt'}</p>${connectionControls(s)}</div>`).join('')}<button type="button" id="family-setup">Importera privat familjefil</button><input type="file" id="setup-file" accept=".json,application/json" hidden><input type="file" id="ics-file" accept=".ics,text/calendar" hidden><p id="import-error" class="error" role="alert"></p><div class="form-actions"><button type="button" id="edit-people">Ändra namn</button><button type="button" id="add-source" class="primary">＋ Lägg till källa</button></div><p class="subtle">Apple/iCloud: anslut Familj med kalenderns prenumerationslänk. iPadens kontoinloggning ger inte automatiskt åtkomst. Outlook: importera ICS. InfoMentor, SportAdmin och Svenska Lag: anslut kalenderprenumeration om den erbjuds. Detta ger läsning av kalendern, inte kontoinloggning eller möjlighet att svara på kallelser.</p>`);
+  openModal('Familjens kalendrar', `<p>Anslut en kalenderprenumeration för automatisk uppdatering var 15:e minut medan servern körs. Du kan också importera en ICS-fil manuellt.</p><p class="subtle">${connectionService === 'ready' ? 'Kalenderservern är tillgänglig.' : escape(connectionServiceError || 'Kontrollerar kalenderservern…')}</p><p class="subtle">Importfönster: en månad bakåt och cirka ett år framåt. Kalenderns tider visas i enhetens tidszon. Välj en egen källa per barn eller lag om de ska kunna filtreras var för sig.</p>${state.sources.filter(s => s.id !== 'manual').map(s => `<div class="source-card"><h3>${escape(s.name)}</h3><label class="color-choice">Kalenderfärg <input type="color" data-color="${escape(s.id)}" aria-label="Färg för ${escape(s.name)}" value="${calendarColor(state.calendarColors?.[s.id]) || ({ '1': '#2276d3', '2': '#ad60c8', '3': '#df8a1e', '4': '#42a47c' }[s.people?.[0]] || '#2276d3')}"></label><p>${escape(s.provider)} · ${escape(personNames(s.people))} · ${escape(categories[s.category])}</p><p class="subtle">${connections.find(c => c.source.id === s.id) ? (connections.find(c => c.source.id === s.id).lastSuccess ? 'Ansluten kalenderprenumeration' : 'Länk sparad – väntar på lyckad synk') : s.lastImport ? 'Senast importerad: ' + escape(new Date(s.lastImport).toLocaleString('sv-SE')) : 'Inte ansluten · inga kalenderuppgifter hämtas automatiskt'}</p>${connectionControls(s)}</div>`).join('')}<button type="button" id="family-setup">Importera privat familjefil</button><input type="file" id="setup-file" accept=".json,application/json" hidden><input type="file" id="ics-file" accept=".ics,text/calendar" hidden><p id="import-error" class="error" role="alert"></p><div class="form-actions"><button type="button" id="edit-people">Ändra namn</button><button type="button" id="add-source" class="primary">＋ Lägg till källa</button></div><p class="subtle">Apple/iCloud: anslut Familj med kalenderns prenumerationslänk. iPadens kontoinloggning ger inte automatiskt åtkomst. Outlook: importera ICS. InfoMentor, SportAdmin och Svenska Lag: anslut kalenderprenumeration om den erbjuds. Detta ger läsning av kalendern, inte kontoinloggning eller möjlighet att svara på kallelser.</p>`);
   $('#modal-body').querySelectorAll('[data-import]').forEach(button => {
     button.onclick = () => {
       const source = state.sources.find(s => s.id === button.dataset.import);
@@ -225,6 +229,7 @@ function showSources() {
       $('#ics-file').click();
     };
   });
+  $('#family-setup').disabled = connectionReadOnly;
   $('#family-setup').onclick = () => $('#setup-file').click();
   $('#setup-file').onchange = async event => {
     const file = event.target.files[0]; if (!file) return;
@@ -237,6 +242,7 @@ function showSources() {
       $('#family-setup').textContent = 'Sparar anslutningar…';
       for (const input of data.connections) await connectionRequest('/setup', input);
       state.weeklyCalendars = state.weeklyCalendars || [];
+      if (calendars.length) await connectionRequest('/templates', { calendars: calendars.map(({ source, ics }) => ({ source, ics })) });
       for (const item of calendars) {
         state.weeklyCalendars = state.weeklyCalendars.filter(c => c.source.id !== item.source.id).concat({ source: item.source, ics: item.ics });
         if (!state.sources.some(s => s.id === item.source.id)) { state.sources.push(item.source); selectedSources.push(item.source.id); }
@@ -249,6 +255,13 @@ function showSources() {
       if (data.notes) openModal('Kontrollera schemat', `<p>${escape(data.notes)}</p>`);
     } catch (error) { $('#import-error').textContent = error.message; if ($('#family-setup')) { $('#family-setup').disabled = false; $('#family-setup').textContent = 'Importera privat familjefil'; } }
   };
+  $('#modal-body').querySelectorAll('[data-color]').forEach(input => {
+    input.onchange = () => {
+      if (!calendarColor(input.value)) return;
+      state.calendarColors = { ...(state.calendarColors || {}), [input.dataset.color]: input.value };
+      persist(); render();
+    };
+  });
   bindConnectionButtons();
   $('#edit-people').onclick = editPeople;
   $('#add-source').onclick = addSource;
@@ -288,6 +301,7 @@ function calendarEvents() {
   return state.events.filter(e => !(ids.has(e.sourceId) && (e.imported || e.id.startsWith('demo-')))).concat(connections.flatMap(c => c.events), weeklyCache.events);
 }
 function connectionControls(source) {
+  if (connectionReadOnly) return '<p class="subtle">Hämtas från Macen. Anslutningar ändras på Macen via localhost.</p>';
   const connection = connections.find(c => c.source.id === source.id);
   if (connection) return `<p class="subtle">Senaste lyckade synk: ${escape(connection.lastSuccess ? new Date(connection.lastSuccess).toLocaleString('sv-SE') : 'Ingen lyckad hämtning ännu')} · ${connection.events.length} aktiviteter</p>${connection.error ? `<p class="error">${escape(connection.error)}</p>` : ''}<div class="source-actions"><button data-sync="${escape(source.id)}">Uppdatera nu</button><button data-connect="${escape(source.id)}">Byt länk</button><button data-disconnect="${escape(source.id)}">Koppla från</button></div>`;
   return `<div class="source-actions">${['Apple / iCloud', 'InfoMentor', 'SportAdmin', 'Svenska Lag'].includes(source.provider) ? `<button data-connect="${escape(source.id)}" ${connectionService !== 'ready' ? 'disabled' : ''}>Anslut kalender</button>` : ''}<button type="button" data-import="${escape(source.id)}">Importera ICS-fil</button></div>`;
@@ -301,6 +315,10 @@ async function connectionRequest(path = '', body) {
   try { data = await response.json(); } catch { throw new Error('Kalenderanslutningar kräver Node-servern. Starta npm run dev och öppna appen via localhost på datorn.'); }
   if (!response.ok) throw new Error(data.error || 'Anslutningen misslyckades.');
   connections = data.connections.filter(c => !retiredSources.includes(c.source.id)).map(c => c.source.id === 'icloud' ? { ...c, source: { ...c.source, name: 'Familj', people: ['1', '2'], category: 'family' } } : c);
+  if (typeof data.readOnly === 'boolean') connectionReadOnly = data.readOnly;
+  if (connectionReadOnly) { state.demo = false; state.events = state.events.filter(e => !e.id.startsWith('demo-')); }
+  if (data.calendars) state.weeklyCalendars = data.calendars;
+  for (const item of state.weeklyCalendars || []) { if (!state.sources.some(s => s.id === item.source.id)) { state.sources.push(item.source); selectedSources.push(item.source.id); } }
   connectionService = 'ready'; connectionServiceError = '';
   let added = false;
   connections.forEach(c => {

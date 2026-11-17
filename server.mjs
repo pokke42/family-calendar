@@ -13,7 +13,7 @@ setInterval(() => store.sync().catch(() => console.error('Kalendersynk kunde int
 const files = { '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/styles.css': ['styles.css', 'text/css'], '/ical.js.LICENSE.txt': ['ical.js.LICENSE.txt', 'text/plain'] };
 http.createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
-  if (pathname.startsWith('/api/')) { await serveConnections(req, res, pathname, store); return; }
+  if (pathname.startsWith('/api/')) { await serveConnections(req, res, pathname, store, process.env.CALENDAR_LAN_HOST); return; }
   const file = files[pathname];
   if (!file) { res.writeHead(404).end('Not found'); return; }
   try {
@@ -21,4 +21,7 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': `${file[1]}; charset=utf-8`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" });
     res.end(body);
   } catch { res.writeHead(503).end('Run npm run build first.'); }
-}).listen(Number(process.env.PORT || 3000), '0.0.0.0', () => console.log('Family calendar listening on port ' + (process.env.PORT || 3000)));
+}).listen(Number(process.env.PORT || 3000), '0.0.0.0', () => {
+  console.log('Family calendar listening on port ' + (process.env.PORT || 3000));
+  if (process.env.CALENDAR_LAN_HOST) console.log(`Öppna på iPaden på samma Wi-Fi: http://${process.env.CALENDAR_LAN_HOST}:${process.env.PORT || 3000}`);
+});

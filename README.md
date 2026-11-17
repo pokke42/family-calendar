@@ -64,10 +64,42 @@ Kalendertolkningen använder oförändrad [ical.js 2.2.1](https://github.com/moz
 
 Under Hantera kalenderkällor kan InfoMentor, SportAdmin och Svenska Lag anslutas med en ICS-prenumerationslänk (`https://`, `webcal://` eller `webcals://`). Hämtning sker på servern vid anslutning, serverstart och sedan var 15:e minut. Uppdatera nu gör högst en ny hämtning per minut. Misslyckad synk behåller senaste kalendern och visar felstatus. Detta är kalenderläsning; direkta svar på kallelser och kontoinloggning till leverantörerna är inte implementerade. Integrationen har testats med testdata; faktisk åtkomst beror på respektive prenumerationslänk och nätverk.
 
-Servern sparar länkar och cache i `.local/connections.json` (ignoreras av Git). `CALENDAR_STORE` kan ange annan privat sökväg. API:et tillåter bara åtkomst via localhost på serverdatorn, eftersom familjeinloggning ännu saknas. Det är inte ett API som ska exponeras publikt eller en delad iPad-lösning. Standardvärdar ligger under tjänsternas domäner. Om InfoMentor länkar vidare till en extern schematjänst kan dess exakta värdnamn anges i `CALENDAR_ALLOWED_HOSTS`, kommaseparerat. HTTPS, publik DNS-adress och varje omdirigering kontrolleras.
+Servern sparar länkar och cache i `.local/connections.json` (ignoreras av Git). `CALENDAR_STORE` kan ange annan privat sökväg. Som standard tillåter API:et bara åtkomst via localhost på serverdatorn. Kalenderanslutningar ändras alltid via localhost. Det valfria CALENDAR_LAN_HOST-läget nedan ger skrivskyddad läsning på hemnätet. API:et ska inte exponeras publikt. Standardvärdar ligger under tjänsternas domäner. Om InfoMentor länkar vidare till en extern schematjänst kan dess exakta värdnamn anges i `CALENDAR_ALLOWED_HOSTS`, kommaseparerat. HTTPS, publik DNS-adress och varje omdirigering kontrolleras.
 
 En separat privat `*.family.private.json`-fil kan importeras via **Hantera kalenderkällor → Importera privat familjefil**. Den innehåller `version: 1`, `connections` (objekt med `source` och `url`) och `calendars` (objekt med `source` och `ics`). Privata länkar sparas bara på servern. Länkar som inte kan hämtas sparas som väntande, med felstatus. Veckoscheman lagras som återkommande mallar i webbläsaren och fortsätter gälla tills en ny fil med samma käll-id laddas upp. Lov, studiedagar och terminsgränser dras inte av automatiskt. Importen tar bort exempelaktiviteter; egna aktiviteter behålls. Privata filer, PDF-scheman och prenumerationslänkar ska inte läggas i Git.
 
 På Mac: `cd /Users/hakanroos/Documents/ChatGPT/family-cal`, `git pull`, `npm ci --include=dev`, `npm run build`, `npm run dev`. Öppna sedan http://localhost:3000 och importera den privata familjefilen. Servern behöver vara igång för uppdateringar. Spara den privata filen separat från GitHub.
 
 Safari kan inte läsa Kalender-appens iCloud-data genom iPadens kontoinloggning. Källan Familj stöder i stället publicerad iCloud-prenumeration via servern, samt ICS-import. Länken lagras bara på servern och i den privata familjefilen. Kopplingen läser kalendern; nya aktiviteter i appen sparas lokalt och skrivs inte tillbaka till iCloud. De tidigare källorna Fotboll, Gymnastik och Egna aktiviteter tas bort vid uppgradering. Egna lokala aktiviteter flyttas till Familj.
+
+## Kalenderfärger
+
+Öppna Hantera kalenderkällor och välj Kalenderfärg på respektive källa. Färgen används för aktivitetens kant och ljusa bakgrund i alla tre vyer. Valet sparas i webbläsaren på respektive enhet. Filtren för person fungerar som tidigare.
+
+## Kostnadsfri användning på iPad hemma
+
+Enklast utan hostingavgift är att köra servern på den befintliga Macen och läsa kalendern från iPaden på samma betrodda Wi-Fi. Macen måste vara på och servern igång; detta ger inte åtkomst utanför hemnätet. Macen använder förstås ström. Det behövs inget molnkonto, kort eller abonnemang. Gratis statisk hosting, exempelvis GitHub Pages, kan inte köra denna appens Node-server och kalenderhämtning.
+
+1. Uppdatera på Macen och bygg:
+
+   ```sh
+   cd /Users/hakanroos/Documents/ChatGPT/family-cal
+   git pull
+   npm ci --include=dev
+   npm run build
+   ```
+
+2. Starta med läsåtkomst på hemnätet och hindra viloläge medan processen körs:
+
+   ```sh
+   CALENDAR_LAN_HOST="$(ipconfig getifaddr en0)" caffeinate -i npm run dev
+   ```
+
+   Macens Wi-Fi använder vanligen en0. Om ingen iPad-adress visas, hitta Wi-Fi-adressen i Systeminställningar → Wi-Fi → Detaljer → TCP/IP och ersätt kommandot med till exempel `CALENDAR_LAN_HOST=192.168.1.20 caffeinate -i npm run dev` (använd din egen adress). Låt Macens lock vara öppet. Tillåt Node i macOS-brandväggen om systemet frågar.
+
+3. På Macen: öppna http://localhost:3000 och importera den senaste privata familjefilen igen under Hantera kalenderkällor. Denna version sparar även veckoschemana på servern för läsning från iPaden. Bekräfta status på varje prenumeration. Importera inte den privata filen på iPaden.
+4. Servern skriver ut en adress som `http://192.168.1.20:3000`. Öppna den adressen i Safari på iPaden. Båda enheterna måste vara på samma nät; gästnät med klientisolering fungerar inte. Välj sedan Dela → Lägg till på hemskärmen om du vill.
+
+`CALENDAR_LAN_HOST` öppnar endast läsning av den redan hämtade kalendern och veckoschemana för enheter med privat nätadress, med rätt värdnamn och ursprung. Prenumerationslänkar skickas aldrig i detta API. Anslutningar och schemaimport ändras på Macen via localhost. Alla på det betrodda nätet som känner till adressen kan läsa kalendern. Gör ingen portvidarebefordran till internet. För åtkomst utanför hemmet behövs en separat lösning med HTTPS och autentisering.
+
+Aktiviteter som skapas manuellt, namnändringar, filter och färgval är fortfarande lokala för respektive webbläsare. Kalenderprenumerationer och importerade veckoscheman kommer från Macens server. Nätverksläget har testats med simulerade nätverksförfrågningar; fysisk iPad och macOS-brandvägg behöver verifieras på dina enheter.

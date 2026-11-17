@@ -6,7 +6,30 @@ import path from 'node:path';
 import http from 'node:http';
 import { normalizeFeedUrl, publicIPv4 } from '../integrations/feed.mjs';
 import { CalendarConnections } from '../integrations/store.mjs';
-import { serveConnections, isLocalRequest } from '../integrations/api.mjs';
+import { serveConnections, isLocalRequest, isLanReader } from '../integrations/api.mjs';
+
+test('LAN mode only allows same-origin readers on the explicitly configured private address', async t => {
+  const store = await fixture(t, async () => feed());
+  await store.connect({ source, url });
+  const calendars = [{ source: { ...source, id: 'weekly' }, ics: feed() }];
+  await store.saveCalendars(calendars);
+  const restored = new CalendarConnections(store.file); await restored.load();
+  assert.deepEqual(restored.calendars, calendars);
+  const req = { method: 'GET', socket: { remoteAddress: '192.168.1.50', localPort: 3000 }, headers: { host: '192.168.1.20:3000' } };
+  assert.equal(isLanReader(req, '192.168.1.20'), true);
+  assert.equal(isLanReader(req, undefined), false);
+  assert.equal(isLanReader({ ...req, headers: { host: 'evil.example:3000' } }, '192.168.1.20'), false);
+  assert.equal(isLanReader({ ...req, socket: { ...req.socket, remoteAddress: '8.8.8.8' } }, '192.168.1.20'), false);
+  assert.equal(isLanReader({ ...req, headers: { ...req.headers, origin: 'https://evil.example' } }, '192.168.1.20'), false);
+  let status, output;
+  const res = { writeHead: code => { status = code; }, end: text => { output = JSON.parse(text); } };
+  await serveConnections(req, res, '/api/connections', restored, '192.168.1.20');
+  assert.equal(status, 200); assert.equal(output.readOnly, true);
+  assert.deepEqual(output.calendars, calendars);
+  assert.ok(!JSON.stringify(output).includes('secret-test-value'));
+  await serveConnections({ ...req, method: 'POST' }, res, '/api/connections/disconnect', restored, '192.168.1.20');
+  assert.equal(status, 403); assert.equal(restored.snapshot().length, 1);
+});
 
 const source = { id: 'football', name: 'Olles fotboll', provider: 'Svenska Lag', people: ['3'], category: 'sport' };
 const url = 'https://www.svenskalag.se/calendar?private=secret-test-value';

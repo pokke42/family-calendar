@@ -6,13 +6,14 @@ import { fetchCalendar, normalizeFeedUrl } from './feed.mjs';
 export class CalendarConnections {
   constructor(file, { fetchFeed = fetchCalendar, extraHosts = [], now = () => new Date() } = {}) {
     this.file = file; this.fetchFeed = fetchFeed; this.extraHosts = extraHosts; this.now = now;
-    this.connections = []; this.queue = Promise.resolve();
+    this.connections = []; this.calendars = null; this.queue = Promise.resolve();
   }
   async load() {
     try {
       const data = JSON.parse(await readFile(this.file, 'utf8'));
       if (data.version !== 1 || !Array.isArray(data.connections)) throw new Error('Invalid format');
       this.connections = data.connections;
+      this.calendars = data.calendars || null;
     } catch (error) { if (error.code !== 'ENOENT') throw new Error('Anslutningsfilen kunde inte läsas. Originalfilen har inte ändrats.'); }
   }
   serial(action) {
@@ -21,11 +22,23 @@ export class CalendarConnections {
   }
   async save() {
     await mkdir(path.dirname(this.file), { recursive: true, mode: 0o700 });
-    await writeFile(this.file + '.tmp', JSON.stringify({ version: 1, connections: this.connections }), { mode: 0o600 });
+    await writeFile(this.file + '.tmp', JSON.stringify({ version: 1, connections: this.connections, calendars: this.calendars }), { mode: 0o600 });
     await rename(this.file + '.tmp', this.file);
   }
   snapshot() {
     return this.connections.map(({ url, ...connection }) => structuredClone(connection));
+  }
+  saveCalendars(calendars) {
+    return this.serial(async () => {
+      if (!Array.isArray(calendars) || calendars.length > 20) throw new Error('Ogiltiga veckoscheman.');
+      for (const item of calendars) {
+        if (!item?.source || !/^[a-zA-Z0-9_-]{1,100}$/.test(item.source.id) || typeof item.source.name !== 'string' || !Array.isArray(item.source.people) || typeof item.ics !== 'string') throw new Error('Ogiltigt veckoschema.');
+        try { importCalendar(item.ics, item.source); } catch { throw new Error('Veckoschemat kunde inte läsas.'); }
+      }
+      const prior = this.calendars;
+      this.calendars = calendars.map(({ source, ics }) => ({ source, ics }));
+      try { await this.save(); } catch (error) { this.calendars = prior; throw error; }
+    });
   }
   async refresh(connection) {
     connection.lastAttempt = this.now().toISOString();

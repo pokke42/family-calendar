@@ -10,3 +10,4 @@
 .calendar-fullscreen .event-meta{display:block;font-size:9px}.calendar-fullscreen .event-location{display:none}
 @media(max-width:500px){#view-description{gap:5px;font-size:8px}.calendar-fullscreen .event-meta{font-size:8px}}
 .source-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}button:disabled{opacity:.5;cursor:default}
+.color-choice{display:flex;align-items:center;gap:10px;font-size:12px;margin:8px 0}.modal .color-choice input[type=color]{width:52px;min-height:44px;padding:3px;cursor:pointer}
