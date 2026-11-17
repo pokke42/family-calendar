@@ -21,9 +21,9 @@ Utvecklingsservern lyssnar på port 3000 (`PORT` kan ändra porten). Den servera
 - Apple Kalender-inspirerat gränssnitt med dag-, vecko- och månadsvy, periodanpassad navigering och dagens datum. Vald vy sparas lokalt.
 - Dag och vecka har tidsaxel, separata spalter för överlappande aktiviteter och en särskild rad för heldagar. Månad har ett datumrutnät; tryck på ett datum för att öppna dagen.
 - Helskärmsläge döljer sidofält och apphuvud. Veckans sju dagar och hela dygnets 24 timmar får plats samtidigt, även när iPaden roteras. Avsluta med knappen eller Escape.
-- Håkan, Johanna, Olle och Emil är förvalda medlemmar. Tidigare generiska namn migreras utan att ändra aktiviteter, person-id eller egna anpassade namn.
+- Håkan & Johanna, Olle och Emil är förvalda medlemmar. Tidigare separata vuxen-id:n slås ihop till den gemensamma personen, även på befintliga aktiviteter och anslutningar.
 - Filter som kombineras för person, skola/idrott/familj/övrigt och varje individuell kalenderkälla. En källa per barn och aktivitet ger separat filtrering.
-- Egna aktiviteter med tid, plats och eventuell HTTPS-länk till kallelse.
+- Kalendern visar importerade/prenumererade aktiviteter; nya aktiviteter skapas i källtjänsten.
 - Familjemedlemmar vars visningsnamn kan ändras under kalenderkällor.
 - Manuell import av ICS-filer. Förvalda källor: Apple/iCloud, Outlook, InfoMentor, SportAdmin och Svenska Lag; fler källor kan läggas till.
 - Återkommande händelser, undantag, flyttade händelser, heldagar och tidszonsdefinitioner i ICS. Kalenderlänkar från `URL` öppnas i källtjänsten.
@@ -116,3 +116,10 @@ Serverhämtning och diagnos stöder kalenderfiler upp till 20 MB, exempelvis iCl
 Ett lokalt tillägg finns under `haos/`. Kör `npm run addon:package` för att skapa installationsmappen `dist/haos/hemma`, och kopiera den till `/addons/hemma` på HAOS. Fullständig installationsguide finns i [haos/DOCS.md](haos/DOCS.md). Tillägget använder Home Assistants Ingress och inloggning, utan separat publik port. Anslutningar och veckoscheman kan hanteras via Home Assistant och sparas i tilläggets `/data`, så Macen behöver inte vara på. Befintliga webbläsarinställningar överförs inte automatiskt; importera den privata familjefilen på nytt genom tillägget.
 
 Tillägget är byggt för amd64 och aarch64. Container- och Ingress-tester ersätter inte verifiering i en faktisk HAOS-installation. iPad Air 2 behöver även kunna öppna Home Assistants eget webbgränssnitt; dess webbläsarkrav är separata från kalenderns Safari 15-mål.
+
+
+## Visning och tidszoom (HAOS 0.3.0)
+
+Det finns inget formulär för att skapa aktiviteter. Personerna är Håkan & Johanna, Olle och Emil. Johanna som tidigare hade id 2 flyttas till den gemensamma personen med id 1. Även gamla prenumerationer, veckoscheman och cache migreras. Övrigt och den gamla källan Jobb & planering visas inte; andra tidigare aktiviteter med kategorin Övrigt visas under Familj. Rubriken visar Dag, Vecka eller Månad enligt vald vy.
+
+I dag- och veckovyn: nyp med två fingrar på tidsaxeln för att ändra dess höjd. Dagkolumnernas bredd ändras inte. En finger används för rullning. Zoom begränsas till 50–400 procent (100–400 procent i helskärm), sparas per webbläsare och kan även ändras med +/−. Tryck procentknappen för att återställa; i helskärm ryms då hela dygnet igen. Månadsvyn har ingen tidszoom. Gesterna är testade med Chromium touch-inmatning; fysisk Safari på iPad behöver fortfarande verifieras.

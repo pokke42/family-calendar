@@ -1,5 +1,5 @@
 name: Hemma familjekalender
-version: "0.2.0"
+version: "0.3.0"
 slug: hemma_calendar
 description: Lätt familjekalender med iCloud, skolscheman och kalenderprenumerationer
 url: https://github.com/pokke42/family-calendar

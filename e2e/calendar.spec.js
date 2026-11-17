@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('family filters, week navigation, activity creation and local persistence', async ({ page }) => {
+test('family filters, week navigation and read-only activity display', async ({ page }) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Familjens kalender' })).toBeAttached();
@@ -15,17 +15,7 @@ test('family filters, week navigation, activity creation and local persistence',
   await page.getByRole('button', { name: 'Nästa vecka', exact: true }).click();
   await expect(page.locator('.event')).toHaveCount(0);
   await page.getByRole('button', { name: 'Idag', exact: true }).click();
-  await page.getByRole('button', { name: 'Ny aktivitet' }).click();
-  await page.getByLabel('Vad händer?').fill('Tandläkare <img src=x onerror=alert(1)>');
-  await page.getByLabel('Slutar').fill('16:00');
-  await page.getByRole('button', { name: 'Spara aktivitet' }).click();
-  await expect(page.locator('#form-error')).toContainText('sluttid');
-  await page.getByLabel('Slutar').fill('18:00');
-  await page.getByRole('button', { name: 'Spara aktivitet' }).click();
-  await expect(page.locator('.event').filter({ hasText: 'Tandläkare' })).toBeVisible();
-  await expect(page.locator('.event img')).toHaveCount(0);
-  await page.reload();
-  await expect(page.locator('.event').filter({ hasText: 'Tandläkare' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ny aktivitet' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -53,14 +43,14 @@ test('supports portrait and phone widths without horizontal page overflow', asyn
   for (const width of [768, 375]) {
     await page.setViewportSize({ width, height: 1024 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await expect(page.getByRole('button', { name: 'Ny aktivitet' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Zooma in tidsaxeln' })).toBeVisible();
   }
 });
 
 test('switches between month, week and day with view-specific navigation and retained filters', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-17T12:00:00Z'));
   await page.goto('/');
-  await expect(page.locator('#family-names')).toHaveText('Håkan, Johanna, Olle, Emil');
+  await expect(page.locator('#family-names')).toHaveText('Håkan & Johanna, Olle, Emil');
   await page.getByRole('button', { name: 'Månad', exact: true }).click();
   await expect(page.locator('.month-day')).toHaveCount(42);
   await expect(page.locator('#week-title')).toHaveText('november 2026');
@@ -104,10 +94,6 @@ test('fullscreen fallback fits seven days and all 24 hours in iPad landscape and
     expect(sizes.pageWidth).toBeLessThanOrEqual(sizes.width);
     await expect(page.getByRole('button', { name: 'Avsluta helskärm', exact: true })).toBeInViewport();
   }
-  await page.getByRole('button', { name: 'Ny aktivitet', exact: true }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('body')).toHaveClass(/calendar-fullscreen/);
   await page.keyboard.press('Escape');
   await expect(page.locator('body')).not.toHaveClass(/calendar-fullscreen/);
   await expect(page.locator('aside')).toBeVisible();
@@ -124,7 +110,7 @@ test('legacy data gets named members without losing activities', async ({ page }
     }));
   });
   await page.goto('/');
-  await expect(page.locator('#family-names')).toHaveText('Håkan, Johanna, Olle, Emil');
+  await expect(page.locator('#family-names')).toHaveText('Håkan & Johanna, Olle, Emil');
   await expect(page.locator('.event')).toHaveCount(1);
   await expect(page.locator('.event-meta')).toContainText('Olle');
 });
@@ -219,7 +205,7 @@ test('only Familj remains among the old default activity calendars and iCloud ca
   await expect(page.locator('#source-filters')).toContainText('Familj');
   await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
   const source = page.locator('.source-card').filter({ has: page.getByRole('heading', { name: 'Familj', exact: true }) });
-  await expect(source).toContainText('Håkan, Johanna');
+  await expect(source).toContainText('Håkan & Johanna');
   await source.getByRole('button', { name: 'Anslut kalender' }).click();
   await expect(page.getByRole('heading', { name: 'Anslut Apple / iCloud' })).toBeVisible();
 });
@@ -271,4 +257,77 @@ test('HA Ingress prefix loads assets and API relative to authenticated app URL',
   await page.getByRole('button', { name: 'Hantera kalenderkällor' }).click();
   await expect(page.getByRole('button', { name: 'Importera privat familjefil' })).toBeEnabled();
   expect(loaded).toEqual(expect.arrayContaining(['', 'app.js', 'styles.css', 'api/connections']));
+});
+
+test('merges old people and categories without losing Johannas calendar events', async ({ page }) => {
+  await page.addInitScript(() => {
+    const start = new Date(); start.setHours(9, 0, 0, 0);
+    localStorage.setItem('hemma-calendar-v1', JSON.stringify({ version: 1, demo: false,
+      people: [{ id: '1', name: 'Håkan' }, { id: '2', name: 'Johanna' }, { id: '3', name: 'Olle' }, { id: '4', name: 'Emil' }],
+      sources: [{ id: 'icloud', name: 'Familj', people: ['1', '2'], category: 'family' }, { id: 'outlook', name: 'Jobb & planering', category: 'other', people: ['1'] }],
+      events: [{ id: 'johanna', title: 'Johannas aktivitet', sourceId: 'icloud', category: 'other', people: ['2'], start: start.toISOString(), end: new Date(+start + 3600000).toISOString() }]
+    }));
+  });
+  await page.goto('/');
+  await expect(page.locator('#people-filters input')).toHaveCount(3);
+  await expect(page.locator('#people-filters')).toContainText('Håkan & Johanna');
+  await expect(page.locator('#people-filters input[value="2"]')).toHaveCount(0);
+  await expect(page.locator('#category-filters')).not.toContainText('Övrigt');
+  await expect(page.locator('legend').filter({ hasText: 'Kategorier' })).toBeVisible();
+  await expect(page.locator('#source-filters')).not.toContainText('Jobb & planering');
+  await expect(page.locator('.event')).toHaveCount(1);
+  await expect(page.locator('.event-meta')).toContainText('Håkan & Johanna');
+  await page.locator('#people-filters input[value="1"]').uncheck();
+  await expect(page.locator('.event')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Månad', exact: true }).click();
+  await expect(page.locator('#view-label')).toHaveText('Månad');
+  await expect(page).toHaveTitle('Månad · Familjekalender');
+  await expect(page.locator('#timeline-controls')).toBeHidden();
+});
+
+test('iPad pinch zoom stretches time only, anchors the gesture, and supports fullscreen reset', async ({ browser }) => {
+  const context = await browser.newContext({ hasTouch: true, viewport: { width: 1024, height: 768 } });
+  const page = await context.newPage();
+  await page.goto('http://127.0.0.1:3000');
+  const cdp = await context.newCDPSession(page);
+  const box = await page.locator('.time-scroll').boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const point = (id, clientY) => ({ x, y: clientY, id });
+  const metrics = () => page.evaluate(() => {
+    const s = document.querySelector('.time-scroll'), c = document.querySelector('.time-canvas');
+    return { height: c.clientHeight, width: c.clientWidth, scroll: s.scrollTop, viewport: visualViewport.scale };
+  });
+  const before = await metrics();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(0, y - 30), point(1, y + 30)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(0, y - 60), point(1, y + 60)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const after = await metrics();
+  expect(after.height).toBeGreaterThan(before.height * 1.8);
+  expect(after.width).toBe(before.width);
+  expect(after.viewport).toBe(before.viewport);
+  expect(Math.abs((before.scroll + box.height / 2) / before.height - (after.scroll + box.height / 2) / after.height)).toBeLessThan(.01);
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await page.reload();
+  expect((await metrics()).height).toBe(after.height);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(0, y - 60), point(1, y + 60)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(0, y - 30), point(1, y + 30)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  expect((await metrics()).height).toBe(1152);
+  const beforePan = (await metrics()).scroll;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(0, y + 40)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(0, y)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(0, y - 40)] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(async () => (await metrics()).scroll).toBeGreaterThan(beforePan);
+  await page.getByRole('button', { name: 'Återställ tidsaxeln' }).click();
+  expect((await metrics()).height).toBe(1152);
+  await page.getByRole('button', { name: 'Dag', exact: true }).click();
+  await expect(page.locator('#view-label')).toHaveText('Dag');
+  await page.getByRole('button', { name: 'Zooma in tidsaxeln' }).click();
+  expect((await metrics()).height).toBe(1440);
+  await page.evaluate(() => { document.documentElement.requestFullscreen = undefined; });
+  await page.getByRole('button', { name: 'Helskärm', exact: true }).click();
+  await page.getByRole('button', { name: 'Återställ tidsaxeln' }).click();
+  expect(await page.evaluate(() => document.querySelector('.time-canvas').clientHeight === document.querySelector('.time-scroll').clientHeight)).toBe(true);
+  await context.close();
 });

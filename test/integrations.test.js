@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
@@ -31,7 +31,7 @@ test('LAN mode only allows same-origin readers on the explicitly configured priv
   assert.equal(status, 403); assert.equal(restored.snapshot().length, 1);
 });
 
-const source = { id: 'football', name: 'Olles fotboll', provider: 'Svenska Lag', people: ['3'], category: 'sport' };
+const source = { id: 'olle-svenskalag', name: 'Olles fotboll', provider: 'Svenska Lag', people: ['3'], category: 'sport' };
 const url = 'https://www.svenskalag.se/calendar?private=secret-test-value';
 const now = () => new Date('2026-11-17T12:00:00Z');
 function feed(title = 'Träning', cancelled = false) {
@@ -183,4 +183,20 @@ test('HA Ingress requires the enabled mode and Supervisor proxy, then permits au
   assert.equal(status, 200); assert.deepEqual(store.calendars, []);
   await serveConnections({ ...req, socket: { ...req.socket, remoteAddress: '192.168.1.50' } }, res, '/api/connections', store, undefined, true);
   assert.equal(status, 403);
+});
+
+test('server migrates old adult membership and drops the retired work calendar after restart', async t => {
+  const store = await fixture(t, async () => feed());
+  await writeFile(store.file, JSON.stringify({ version: 1, connections: [
+    { source: { ...source, id: 'icloud', people: ['2', '1'], category: 'other' }, url, events: [{ people: ['2'], category: 'other' }] },
+    { source: { ...source, id: 'outlook' }, url, events: [] }
+  ], calendars: [{ source: { ...source, people: ['2'] }, ics: feed() }] }));
+  await store.load();
+  assert.equal(store.snapshot().length, 1);
+  assert.deepEqual(store.snapshot()[0].source.people, ['1']);
+  assert.deepEqual(store.snapshot()[0].events[0].people, ['1']);
+  assert.equal(store.snapshot()[0].events[0].category, 'family');
+  assert.deepEqual(store.calendars[0].source.people, ['1']);
+  await store.save(); await store.load();
+  assert.deepEqual(store.snapshot()[0].source.people, ['1']);
 });

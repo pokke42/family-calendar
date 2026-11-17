@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import path from 'node:path';
-import { importCalendar, categories } from '../src/calendar.js';
+import { importCalendar, categories, normalizeMembership, retiredSources } from '../src/calendar.js';
 import { fetchCalendar, normalizeFeedUrl, FeedError } from './feed.mjs';
 import { importServerCalendar } from './server-calendar.mjs';
 
@@ -13,8 +13,8 @@ export class CalendarConnections {
     try {
       const data = JSON.parse(await readFile(this.file, 'utf8'));
       if (data.version !== 1 || !Array.isArray(data.connections)) throw new Error('Invalid format');
-      this.connections = data.connections;
-      this.calendars = data.calendars || null;
+      this.connections = data.connections.filter(c => !retiredSources.includes(c.source.id)).map(c => ({ ...c, source: normalizeMembership(c.source), events: c.events.map(normalizeMembership) }));
+      this.calendars = data.calendars ? data.calendars.filter(c => !retiredSources.includes(c.source.id)).map(c => ({ ...c, source: normalizeMembership(c.source) })) : null;
     } catch (error) { if (error.code !== 'ENOENT') throw new Error('Anslutningsfilen kunde inte läsas. Originalfilen har inte ändrats.'); }
   }
   serial(action) {
@@ -37,7 +37,7 @@ export class CalendarConnections {
         try { importCalendar(item.ics, item.source); } catch { throw new Error('Veckoschemat kunde inte läsas.'); }
       }
       const prior = this.calendars;
-      this.calendars = calendars.map(({ source, ics }) => ({ source, ics }));
+      this.calendars = calendars.filter(c => !retiredSources.includes(c.source.id)).map(({ source, ics }) => ({ source: normalizeMembership(source), ics }));
       try { await this.save(); } catch (error) { this.calendars = prior; throw error; }
     });
   }
@@ -65,7 +65,7 @@ export class CalendarConnections {
 
   connect(input, { allowPending = false } = {}) {
     return this.serial(async () => {
-      const source = input.source;
+      const source = input.source ? normalizeMembership(input.source) : null;
       if (!source || !/^[a-zA-Z0-9_-]{1,100}$/.test(source.id) || typeof source.name !== 'string' || !source.name.trim() || source.name.length > 100 ||
         !Array.isArray(source.people) || !source.people.length || source.people.length > 20 || source.people.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,50}$/.test(id)) || !Object.hasOwn(categories, source.category)) {
         throw new Error('Ange en kalenderkälla med namn, person och aktivitetstyp.');

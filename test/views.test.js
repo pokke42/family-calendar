@@ -8,7 +8,7 @@ test('retires old activity filters and migrates local events into Familj without
   ] });
   assert.deepEqual(state.sources.map(s => s.id), ['icloud', 'emil-sportadmin']);
   assert.equal(state.sources[0].name, 'Familj');
-  assert.deepEqual(state.sources[0].people, ['1', '2']);
+  assert.deepEqual(state.sources[0].people, ['1']);
   assert.deepEqual(state.events.map(e => e.id), ['local', 'actual']);
   assert.equal(state.events[0].sourceId, 'icloud');
 });
@@ -49,10 +49,10 @@ test('overnight events are clipped per day and all-day events stay outside the t
   assert.equal(items[0].bottom, 120);
 });
 
-test('migrates legacy family labels while preserving custom names and identities', () => {
+test('merges adult labels while preserving child identities', () => {
   const people = [{ id: '1', name: 'Jag' }, { id: '2', name: 'Min fru' }, { id: '3', name: 'Barn 1' }, { id: '4', name: 'Barn 2' }];
-  assert.deepEqual(migrateFamilyNames(people).map(p => p.name), ['Håkan', 'Johanna', 'Olle', 'Emil']);
+  assert.deepEqual(migrateFamilyNames(people).map(p => p.name), ['Håkan & Johanna', 'Olle', 'Emil']);
   people[0].name = 'Eget namn';
-  assert.equal(migrateFamilyNames(people)[0].name, 'Eget namn');
+  assert.equal(migrateFamilyNames(people)[0].name, 'Håkan & Johanna');
   assert.equal(people[1].name, 'Min fru');
 });

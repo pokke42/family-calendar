@@ -11,3 +11,5 @@
 @media(max-width:500px){#view-description{gap:5px;font-size:8px}.calendar-fullscreen .event-meta{font-size:8px}}
 .source-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}button:disabled{opacity:.5;cursor:default}
 .color-choice{display:flex;align-items:center;gap:10px;font-size:12px;margin:8px 0}.modal .color-choice input[type=color]{width:52px;min-height:44px;padding:3px;cursor:pointer}
+#view-label{font-size:13px;font-weight:600;color:#555;white-space:nowrap}.week-heading{flex-wrap:wrap;column-gap:10px;row-gap:3px}.timeline-controls{display:flex;align-items:center;gap:4px;flex-shrink:0;padding:0 0 5px}.timeline-controls[hidden]{display:none}.timeline-controls button{min-height:32px;min-width:36px;padding:3px 8px;font-size:13px}.timeline-controls span{font-size:10px;color:#888;margin-left:8px}.time-scroll{touch-action:pan-y}.calendar-fullscreen .time-scroll{touch-action:pan-y}@media(max-width:600px){.timeline-controls span{font-size:9px}#view-label{font-size:11px}.week-heading h2{font-size:15px}}
+#view-label{display:inline}

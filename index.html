@@ -15,21 +15,21 @@
   <header class="topbar"><button id="toggle-sidebar" type="button" aria-label="Visa eller dölj kalenderfilter" aria-expanded="true">☷</button><a class="brand" href="./" aria-label="Hemma startsida">Kalender <span>Hemma</span></a><span class="local-badge">Lokalt</span></header>
   <div class="layout">
     <aside aria-label="Kalenderfilter">
-      <div class="sidebar-title">Familjen</div><p id="family-names" class="muted small">Håkan, Johanna, Olle & Emil</p>
+      <div class="sidebar-title">Familjen</div><p id="family-names" class="muted small">Håkan &amp; Johanna, Olle &amp; Emil</p>
       <button id="all-people" class="all-button" type="button">Visa hela familjen</button>
       <fieldset><legend>VEM VILL DU SE?</legend><div id="people-filters"></div></fieldset>
-      <fieldset><legend>VAD HÄNDER?</legend><div id="category-filters"></div></fieldset>
+      <fieldset><legend>Kategorier</legend><div id="category-filters"></div></fieldset>
       <fieldset><legend>KALENDRAR & AKTIVITETER</legend><div id="source-filters"></div></fieldset>
       <button id="manage-sources" class="text-button" type="button">＋ Hantera kalenderkällor</button>
       <div class="sidebar-note">Kalendrarna sparas lokalt på den här enheten.</div>
     </aside>
     <main>
-      <div class="page-heading"><h1 class="sr-only">Familjens kalender</h1><div class="view-switch" role="group" aria-label="Kalendervy"><button type="button" data-view="day" aria-pressed="false">Dag</button><button type="button" data-view="week" aria-pressed="true">Vecka</button><button type="button" data-view="month" aria-pressed="false">Månad</button></div><div class="page-actions"><button id="fullscreen" type="button" aria-label="Helskärm" aria-pressed="false" title="Visa kalendern över hela appytan">⛶ <span>Helskärm</span></button><button id="new-event" class="primary" type="button" aria-label="Ny aktivitet">＋ <span>Ny aktivitet</span></button></div></div>
+      <div class="page-heading"><h1 class="sr-only">Familjens kalender</h1><div class="view-switch" role="group" aria-label="Kalendervy"><button type="button" data-view="day" aria-pressed="false">Dag</button><button type="button" data-view="week" aria-pressed="true">Vecka</button><button type="button" data-view="month" aria-pressed="false">Månad</button></div><div class="page-actions"><button id="fullscreen" type="button" aria-label="Helskärm" aria-pressed="false" title="Visa kalendern över hela appytan">⛶ <span>Helskärm</span></button></div></div>
       <div class="demo-notice" id="demo-notice">Du tittar på exempeldata. Dina ändringar sparas bara i den här webbläsaren. <button id="clear-demo" type="button">Börja med tom kalender</button></div>
       <section class="calendar" aria-label="Veckokalender">
-        <div class="calendar-toolbar"><div class="week-heading"><h2 id="week-title"></h2><span id="week-number"></span></div><div class="navigation"><button id="previous" aria-label="Föregående vecka" type="button">‹</button><button id="today" type="button">Idag</button><button id="next" aria-label="Nästa vecka" type="button">›</button></div></div>
+        <div class="calendar-toolbar"><div class="week-heading"><span id="view-label">Vecka</span><h2 id="week-title"></h2><span id="week-number"></span></div><div class="navigation"><button id="previous" aria-label="Föregående vecka" type="button">‹</button><button id="today" type="button">Idag</button><button id="next" aria-label="Nästa vecka" type="button">›</button></div></div>
         <div class="calendar-summary"><span id="event-count" role="status"></span><span id="view-description" class="muted">Veckovy</span></div>
-        <div id="days"></div>
+        <div id="timeline-controls" class="timeline-controls"><button id="zoom-out" type="button" aria-label="Zooma ut tidsaxeln">−</button><button id="zoom-reset" type="button" aria-label="Återställ tidsaxeln">100 %</button><button id="zoom-in" type="button" aria-label="Zooma in tidsaxeln">＋</button><span>Nyp med två fingrar för att zooma tiden</span></div><div id="days"></div>
       </section>
       <footer>Hemma · Gott om plats för livet <button id="about" type="button">Om synk & inloggning</button></footer>
     </main>

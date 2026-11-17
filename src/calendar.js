@@ -1,14 +1,18 @@
 import ICAL from 'ical.js';
 
-export const categories = { school: 'Skola', sport: 'Idrott', family: 'Familj', other: 'Övrigt' };
-export const retiredSources = ['football', 'gym', 'manual'];
+export const categories = { school: 'Skola', sport: 'Idrott', family: 'Familj' };
+export const retiredSources = ['football', 'gym', 'manual', 'outlook'];
+export function normalizeMembership(item) {
+  return { ...item, people: [...new Set((item.people || []).map(id => id === '2' ? '1' : id))], category: item.category === 'other' ? 'family' : item.category };
+}
 export function migrateSources(state) {
-  state.sources = state.sources.filter(source => !retiredSources.includes(source.id));
-  const family = { id: 'icloud', name: 'Familj', provider: 'Apple / iCloud', people: ['1', '2'], category: 'family' };
+  state.sources = state.sources.filter(source => !retiredSources.includes(source.id)).map(normalizeMembership);
+  const family = { id: 'icloud', name: 'Familj', provider: 'Apple / iCloud', people: ['1'], category: 'family' };
   const existing = state.sources.find(source => source.id === 'icloud');
   if (existing) Object.assign(existing, family); else state.sources.unshift(family);
-  state.events = state.events.filter(event => !['football', 'gym'].includes(event.sourceId))
-    .map(event => event.sourceId === 'manual' ? { ...event, sourceId: 'icloud' } : event);
+  state.events = state.events.filter(event => !['football', 'gym', 'outlook'].includes(event.sourceId))
+    .map(event => normalizeMembership(event.sourceId === 'manual' ? { ...event, sourceId: 'icloud' } : event));
+  if (state.weeklyCalendars) state.weeklyCalendars = state.weeklyCalendars.filter(c => !retiredSources.includes(c.source.id)).map(c => ({ ...c, source: normalizeMembership(c.source) }));
   return state;
 }
 export function localDate(date) {
@@ -40,8 +44,10 @@ export function navigateDate(date, view, direction) {
   return target;
 }
 export function migrateFamilyNames(people) {
-  const defaults = { '1': ['Jag', 'Håkan'], '2': ['Min fru', 'Johanna'], '3': ['Barn 1', 'Olle'], '4': ['Barn 2', 'Emil'] };
-  return people.map(person => ({ ...person, name: defaults[person.id]?.[0] === person.name ? defaults[person.id][1] : person.name }));
+  const defaults = { '3': ['Barn 1', 'Olle'], '4': ['Barn 2', 'Emil'] };
+  const result = people.filter(p => p.id !== '2').map(person => ({ ...person, name: person.id === '1' ? 'Håkan & Johanna' : defaults[person.id]?.[0] === person.name ? defaults[person.id][1] : person.name }));
+  if (!result.some(p => p.id === '1')) result.unshift({ id: '1', name: 'Håkan & Johanna' });
+  return result;
 }
 
 // Lay out connected overlap groups independently. Events touching at their ends do not overlap.

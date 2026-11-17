@@ -14,7 +14,7 @@ Lokalt tillägg för Home Assistant OS på amd64 eller aarch64 (exempelvis Home 
 8. Öppna kalendern genom Home Assistant på Macen och välj **Hantera kalenderkällor → Importera privat familjefil**. Välj den senaste privata JSON-filen som innehåller era länkar och veckoscheman. Den ingår inte i installationspaketet. Kontrollera synkstatus för varje källa.
 9. På iPaden: öppna Home Assistant i Safari, logga in och välj **Familjekalender** i sidofältet. Macens kalenderprocess kan nu stoppas.
 
-Anslutningar, servercache och veckoscheman sparas i `/data/connections.json` i tilläggets beständiga data. Starta om tillägget och bekräfta att kalendrarna är kvar. Ta med tilläggets data i Home Assistants säkerhetskopior. Färgval, filter och manuellt skapade aktiviteter sparas fortfarande per webbläsare.
+Anslutningar, servercache och veckoscheman sparas i `/data/connections.json` i tilläggets beständiga data. Starta om tillägget och bekräfta att kalendrarna är kvar. Ta med tilläggets data i Home Assistants säkerhetskopior. Färgval, tidszoom och filter sparas fortfarande per webbläsare. Aktiviteter skapas i källtjänsten, inte i kalenderappen.
 
 ## Åtkomst
 
@@ -34,4 +34,9 @@ Paketet skapas från projektroten med `npm run addon:package`. Endast en uttryck
 
 ## Verifiering av detta paket
 
-Containerbygget och en runtime på amd64 är testade. Ingress simulerades med proxyadressen 172.30.32.2; testerna kontrollerade HTML-basväg, API-läsning, importskrivning och beständiga data efter containeromstart. 27 enhetstester och 13 webbläsartester passerade. Byggmiljöns eget CA-certifikat monterades tillfälligt som en bygghemlighet för npm:s TLS-verifiering; det ingår inte i paketet eller runtime. TLS-verifiering var aktiverad. Faktisk HAOS-installation, aarch64-körning och iPad Air 2 har ännu inte verifierats.
+Containerbygget och en runtime på amd64 är testade. Ingress simulerades med proxyadressen 172.30.32.2; testerna kontrollerade HTML-basväg, API-läsning, importskrivning och beständiga data efter containeromstart. 28 enhetstester och 15 webbläsartester passerade, inklusive nypzoom via Chromium touch-inmatning. Byggmiljöns eget CA-certifikat monterades tillfälligt som en bygghemlighet för npm:s TLS-verifiering; det ingår inte i paketet eller runtime. TLS-verifiering var aktiverad. Faktisk HAOS-installation, aarch64-körning och iPad Air 2 har ännu inte verifierats.
+
+
+## Version 0.3.0
+
+Tar bort skapande av aktiviteter, Övrigt och Jobb & planering. Vuxna visas tillsammans som Håkan & Johanna, med automatisk migrering av tidigare kalenderdata. Nypzoom i höjdled fungerar i dag- och veckovyn; zoomknappar och återställning finns som alternativ. För att uppdatera, ersätt mappen `/addons/hemma` med det nya paketet och välj Bygg om/Rebuild. Behåll tilläggets `/data` och avinstallera inte. Ingen ny import av familjefilen krävs för denna uppdatering.
